@@ -1,35 +1,58 @@
 # Strava API Thing
 
+A Jupyter notebook-based project for exploring the Strava cycling activity API and analyzing fitness data from FIT files (Garmin/cycling device format).
 
-This is a notebook to explore the Strava API, as well as performing various 
-functions against data.
+## Quick Start
 
+### Prerequisites
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/) (fast Python package manager)
 
-## TODO
+### Setup
 
-Explore various .fit file decoders:
+```bash
+# Install dependencies
+uv sync --with notebook
 
-* https://pypi.org/project/fitdecode/
-* https://developer.garmin.com/fit/example-projects/python/
-* https://github.com/dtcooper/python-fitparse
+# Activate the virtual environment (optional, uv can run directly)
+source .venv/bin/activate
+```
 
-Explore whether or not I can "match" a workout file to an actual effort (Dynamic Time Warping)
+### Run Jupyter
 
-* https://makeabilitylab.github.io/physcomp/signals/ComparingSignals/index.html
-* https://www.theaidream.com/post/dynamic-time-warping-dtw-algorithm-in-time-series
-* https://dsp.stackexchange.com/questions/76673/what-algorithm-can-i-use-to-compare-two-signals-similarity
-* https://stackoverflow.com/questions/54278721/comparing-multiple-signals-for-similarity
+```bash
+# With activation
+jupyter notebook
 
-ML Stuff?
+# Or directly with uv (no activation needed)
+uv run jupyter notebook
+```
 
-* Use something like [Pycaret](https://pycaret.org/) to build some sort of model (time, heartrate, cadence, power) as inputs.
+The notebooks will be accessible at `http://localhost:8888`
 
+## Project Structure
 
+- **Strava API.ipynb** — Authenticate to Strava API, fetch athlete/activity data, and analyze with Pandas
+- **FIT Files.ipynb** — Decode and explore Garmin FIT files (workouts and activity recordings)
+- **data/** — Sample FIT files for testing
+
+## Environment Variables
+
+Both notebooks require these for Strava API authentication:
+- `CLIENT_ID` — Strava app client ID
+- `CLIENT_SECRET` — Strava app client secret
+- `ACCESS_TOKEN` — OAuth bearer token (generated via authorization flow)
+
+See [CLAUDE.md](CLAUDE.md) for architecture details and Strava API setup instructions.
+
+## Future Ideas
+
+Explore .fit file decoders and signal matching:
+* Dynamic Time Warping for workout matching
+* Machine learning models with Pycaret (time, heartrate, cadence, power)
 
 ## Resources
 
-* Strava Developer Docs: https://developers.strava.com/docs/getting-started/
-    * Application Settings: https://www.strava.com/settings/api
-    * Activity Streams: https://developers.strava.com/docs/reference/#api-Streams-getActivityStreams
-    * Stream Sets: https://developers.strava.com/docs/reference/#api-models-StreamSet
-* Jupyter: https://jupyter.org/install
+* [Strava Developer Docs](https://developers.strava.com/docs/getting-started/) — API reference and setup
+* [FIT File Documentation](https://developer.garmin.com/fit/file-types/) — Garmin format specs
+* [fitdecode](https://pypi.org/project/fitdecode/) — FIT file decoder library
