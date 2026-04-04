@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Strava Tracker{% endblock %}
+
+{% block content %}
+<div class="level">
+    <div class="level-left">
+        <h1 class="title">Activities</h1>
+    </div>
+    <div class="level-right">
+        <form method="post" action="/strava/sync">
+            <button class="button is-primary" type="submit">Sync from Strava</button>
+        </form>
+    </div>
+</div>
+
+{% if activities %}
+<div class="table-container">
+    <table class="table is-fullwidth is-hoverable is-striped">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Name</th>
+                <th>Source</th>
+                <th>Type</th>
+                <th>Duration</th>
+                <th>Distance</th>
+                <th>Avg W</th>
+                <th>Avg HR</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in activities %}
+            <tr>
+                <td><a href="/activities/{{ a.id }}">{{ a.start_date[:10] if a.start_date else "—" }}</a></td>
+                <td><a href="/activities/{{ a.id }}">{{ a.name or "Untitled" }}</a></td>
+                <td>
+                    <span class="tag {% if a.source == 'strava' %}is-warning{% else %}is-info{% endif %}">
+                        {{ a.source }}
+                    </span>
+                </td>
+                <td>{{ a.sport_type or "—" }}</td>
+                <td>{{ a.duration_display }}</td>
+                <td>{{ "%.1f mi"|format(a.distance_mi) if a.distance_mi else "—" }}</td>
+                <td>{{ "%.0f"|format(a.average_watts) if a.average_watts else "—" }}</td>
+                <td>{{ "%.0f"|format(a.average_heartrate) if a.average_heartrate else "—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="has-text-centered py-6">
+    <p class="subtitle">No activities yet.</p>
+    <p>
+        <a href="/upload" class="button is-link">Upload a FIT file</a>
+        or
+        <a href="/settings" class="button is-outlined">Connect Strava</a>
+    </p>
+</div>
+{% endif %}
+{% endblock %}

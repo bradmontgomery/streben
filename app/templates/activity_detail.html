@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}{{ activity.name or "Activity" }} - Strava Tracker{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="breadcrumbs">
+    <ul>
+        <li><a href="/">Dashboard</a></li>
+        <li class="is-active"><a>{{ activity.name or "Activity" }}</a></li>
+    </ul>
+</nav>
+
+<h1 class="title">{{ activity.name or "Activity" }}</h1>
+<p class="subtitle">
+    {{ activity.start_date[:10] if activity.start_date else "" }}
+    <span class="tag {% if activity.source == 'strava' %}is-warning{% else %}is-info{% endif %} ml-2">
+        {{ activity.source }}
+    </span>
+    {% if activity.sport_type %}
+    <span class="tag is-light ml-1">{{ activity.sport_type }}</span>
+    {% endif %}
+</p>
+
+<div class="level">
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Duration</p>
+            <p class="title is-4">{{ activity.duration_display }}</p>
+        </div>
+    </div>
+    {% if activity.distance_mi %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Distance</p>
+            <p class="title is-4">{{ "%.1f"|format(activity.distance_mi) }} mi</p>
+        </div>
+    </div>
+    {% endif %}
+    {% if activity.average_watts %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Avg Power</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.average_watts) }} W</p>
+        </div>
+    </div>
+    {% endif %}
+    {% if activity.max_watts %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Max Power</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.max_watts) }} W</p>
+        </div>
+    </div>
+    {% endif %}
+    {% if activity.average_heartrate %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Avg HR</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.average_heartrate) }} bpm</p>
+        </div>
+    </div>
+    {% endif %}
+    {% if activity.max_heartrate %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Max HR</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.max_heartrate) }} bpm</p>
+        </div>
+    </div>
+    {% endif %}
+    {% if activity.kilojoules %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Energy</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.kilojoules) }} kJ</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if chart_html %}
+<div class="box mt-5">
+    <h2 class="title is-5">Activity Data ({{ stream_count }} data points)</h2>
+    {{ chart_html | safe }}
+</div>
+{% else %}
+<div class="notification is-light mt-5">
+    No stream data available for this activity.
+</div>
+{% endif %}
+
+{% if activity.weighted_average_watts or activity.average_cadence or activity.average_speed %}
+<div class="box mt-5">
+    <h2 class="title is-5">Additional Stats</h2>
+    <div class="columns">
+        {% if activity.weighted_average_watts %}
+        <div class="column">
+            <p class="heading">Normalized Power</p>
+            <p>{{ "%.0f"|format(activity.weighted_average_watts) }} W</p>
+        </div>
+        {% endif %}
+        {% if activity.average_cadence %}
+        <div class="column">
+            <p class="heading">Avg Cadence</p>
+            <p>{{ "%.0f"|format(activity.average_cadence) }} rpm</p>
+        </div>
+        {% endif %}
+        {% if activity.average_speed %}
+        <div class="column">
+            <p class="heading">Avg Speed</p>
+            <p>{{ "%.1f"|format(activity.average_speed * 2.237) }} mph</p>
+        </div>
+        {% endif %}
+        {% if activity.suffer_score %}
+        <div class="column">
+            <p class="heading">Suffer Score</p>
+            <p>{{ "%.0f"|format(activity.suffer_score) }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
