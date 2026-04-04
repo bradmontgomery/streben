@@ -133,7 +133,8 @@ def backfill_streams():
     rows = db.execute(
         """SELECT a.id, a.strava_id FROM activities a
            WHERE a.source = 'strava' AND a.strava_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM activity_streams s WHERE s.activity_id = a.id)"""
+           AND NOT EXISTS (SELECT 1 FROM activity_streams s WHERE s.activity_id = a.id)
+           ORDER BY a.start_date DESC"""
     ).fetchall()
 
     filled = 0
