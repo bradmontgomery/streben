@@ -127,6 +127,35 @@ def strava_sync():
     return RedirectResponse(f"/?flash=Synced+{new_count}+new+activities", status_code=303)
 
 
+@router.post("/strava/backfill-streams")
+def backfill_streams():
+    db = get_db()
+    rows = db.execute(
+        """SELECT a.id, a.strava_id FROM activities a
+           WHERE a.source = 'strava' AND a.strava_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM activity_streams s WHERE s.activity_id = a.id)"""
+    ).fetchall()
+
+    filled = 0
+    errors = 0
+    for row in rows:
+        try:
+            streams = strava_client.get_activity_streams(row["strava_id"])
+            _insert_strava_streams(db, row["id"], streams)
+            if streams:
+                filled += 1
+        except Exception:
+            errors += 1
+
+    db.commit()
+    db.close()
+
+    msg = f"Backfilled+streams+for+{filled}+activities"
+    if errors:
+        msg += f"+({errors}+errors)"
+    return RedirectResponse(f"/?flash={msg}", status_code=303)
+
+
 def _insert_strava_streams(db, activity_id: int, streams: list[dict]):
     if not streams:
         return

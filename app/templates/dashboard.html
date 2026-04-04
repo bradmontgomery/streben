@@ -8,9 +8,14 @@
         <h1 class="title">Activities</h1>
     </div>
     <div class="level-right">
-        <form method="post" action="/strava/sync">
-            <button class="button is-primary" type="submit">Sync from Strava</button>
-        </form>
+        <div class="buttons">
+            <form method="post" action="/strava/sync">
+                <button class="button is-primary" type="submit">Sync from Strava</button>
+            </form>
+            <form method="post" action="/strava/backfill-streams">
+                <button class="button is-info is-outlined" type="submit">Backfill Streams</button>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -49,6 +54,29 @@
         </tbody>
     </table>
 </div>
+
+{% if total_pages > 1 %}
+<nav class="pagination is-centered mt-4" role="navigation" aria-label="pagination">
+    <a class="pagination-previous" {% if page > 1 %}href="/?page={{ page - 1 }}&per_page={{ per_page }}"{% else %}disabled{% endif %}>Previous</a>
+    <a class="pagination-next" {% if page < total_pages %}href="/?page={{ page + 1 }}&per_page={{ per_page }}"{% else %}disabled{% endif %}>Next</a>
+    <ul class="pagination-list">
+        {% if page > 2 %}
+        <li><a class="pagination-link" href="/?page=1&per_page={{ per_page }}">1</a></li>
+        {% if page > 3 %}<li><span class="pagination-ellipsis">&hellip;</span></li>{% endif %}
+        {% endif %}
+        {% for p in range([1, page - 1]|max, [total_pages, page + 1]|min + 1) %}
+        <li><a class="pagination-link {% if p == page %}is-current{% endif %}" href="/?page={{ p }}&per_page={{ per_page }}">{{ p }}</a></li>
+        {% endfor %}
+        {% if page < total_pages - 1 %}
+        {% if page < total_pages - 2 %}<li><span class="pagination-ellipsis">&hellip;</span></li>{% endif %}
+        <li><a class="pagination-link" href="/?page={{ total_pages }}&per_page={{ per_page }}">{{ total_pages }}</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<p class="has-text-grey is-size-7 has-text-centered mt-2">Showing {{ activities|length }} of {{ total }} activities</p>
+
 {% else %}
 <div class="has-text-centered py-6">
     <p class="subtitle">No activities yet.</p>
