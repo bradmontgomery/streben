@@ -36,7 +36,16 @@
         <div class="notification is-success is-light">
             <strong>Connected to Strava</strong>
             {% if auth.expires_at %}
-                <br>Token expires at: {{ auth.expires_at }}
+                <br>Token expires at: <span id="token-expiry">{{ auth.expires_at }}</span>
+                <script>
+                    (() => {
+                        const el = document.getElementById('token-expiry');
+                        const ts = parseInt(el.textContent, 10);
+                        if (!isNaN(ts)) {
+                            el.textContent = new Date(ts * 1000).toLocaleString();
+                        }
+                    })();
+                </script>
             {% endif %}
         </div>
     {% else %}
