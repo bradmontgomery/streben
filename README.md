@@ -1,6 +1,15 @@
 # Strava API Thing
 
-A Jupyter notebook-based project for exploring the Strava cycling activity API and analyzing fitness data from FIT files (Garmin/cycling device format).
+A locally-running web application for syncing, storing, and visualizing cycling activity data from Strava and Garmin FIT files.
+
+## Features
+
+- **Strava Sync** — OAuth integration to pull all activities and per-second stream data
+- **FIT File Upload** — Import activities directly from Garmin .fit files
+- **Activity Dashboard** — Paginated list of all activities with stream data indicators
+- **Activity Detail** — Summary stats and interactive Plotly charts of power, HR, cadence
+- **Trends** — Time-series charts (Apache ECharts) with metric toggles, time range selection, and trend lines
+- **Dark/Light Mode** — Theme toggle persisted in browser
 
 ## Quick Start
 
@@ -12,47 +21,33 @@ A Jupyter notebook-based project for exploring the Strava cycling activity API a
 
 ```bash
 # Install dependencies
-uv sync --with notebook
+uv sync
 
-# Activate the virtual environment (optional, uv can run directly)
-source .venv/bin/activate
+# Start the web server
+uv run uvicorn app.main:app --port 8000
 ```
 
-### Run Jupyter
+The app will be accessible at `http://localhost:8000`. The SQLite database is auto-created on first startup.
+
+### Connect to Strava
+
+1. [Create a Strava API application](https://developers.strava.com/docs/getting-started/)
+2. Go to Settings (`/settings`) and enter your Client ID and Client Secret
+3. Click "Connect to Strava" to complete the OAuth flow
+4. Use "Sync from Strava" on the dashboard to pull your activities
+
+### CLI
 
 ```bash
-# With activation
-jupyter notebook
-
-# Or directly with uv (no activation needed)
-uv run jupyter notebook
+# Backfill missing stream data (preferred for large batches)
+uv run strava-cli backfill-streams [--limit N]
 ```
 
-The notebooks will be accessible at `http://localhost:8888`
+## Architecture
 
-## Project Structure
-
-- **Strava API.ipynb** — Authenticate to Strava API, fetch athlete/activity data, and analyze with Pandas
-- **FIT Files.ipynb** — Decode and explore Garmin FIT files (workouts and activity recordings)
-- **data/** — Sample FIT files for testing
-
-## Environment Variables
-
-Both notebooks require these for Strava API authentication:
-- `CLIENT_ID` — Strava app client ID
-- `CLIENT_SECRET` — Strava app client secret
-- `ACCESS_TOKEN` — OAuth bearer token (generated via authorization flow)
-
-See [CLAUDE.md](CLAUDE.md) for architecture details and Strava API setup instructions.
-
-## Future Ideas
-
-Explore .fit file decoders and signal matching:
-* Dynamic Time Warping for workout matching
-* Machine learning models with Pycaret (time, heartrate, cadence, power)
+See [ARCHITECTURE.md](ARCHITECTURE.md) for full technical details including database schema, data flows, routes, and UI documentation.
 
 ## Resources
 
-* [Strava Developer Docs](https://developers.strava.com/docs/getting-started/) — API reference and setup
-* [FIT File Documentation](https://developer.garmin.com/fit/file-types/) — Garmin format specs
-* [fitdecode](https://pypi.org/project/fitdecode/) — FIT file decoder library
+- [Strava Developer Docs](https://developers.strava.com/docs/getting-started/) — API reference and setup
+- [FIT File Documentation](https://developer.garmin.com/fit/file-types/) — Garmin format specs
