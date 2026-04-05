@@ -182,14 +182,19 @@ def backfill_streams():
     return RedirectResponse(f"/?flash={msg}", status_code=303)
 
 
-def _insert_strava_streams(db, activity_id: int, streams: list[dict]):
+def _insert_strava_streams(db, activity_id: int, streams):
     if not streams:
         return
 
     # Build a dict of stream_type -> data array
+    # Strava returns a list of {type, data} objects or a dict keyed by type
     by_type = {}
-    for s in streams:
-        by_type[s["type"]] = s["data"]
+    if isinstance(streams, dict):
+        for key, val in streams.items():
+            by_type[key] = val["data"] if isinstance(val, dict) else val
+    else:
+        for s in streams:
+            by_type[s["type"]] = s["data"]
 
     time_data = by_type.get("time", [])
     if not time_data:
