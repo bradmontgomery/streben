@@ -23,6 +23,7 @@
             <div class="buttons has-addons" id="metric-buttons">
                 <button class="button is-small is-info is-selected" data-metric="duration">Duration</button>
                 <button class="button is-small" data-metric="distance">Distance</button>
+                <button class="button is-small" data-metric="elevation">Elevation</button>
                 <button class="button is-small" data-metric="avg_power">Avg Power</button>
                 <button class="button is-small" data-metric="max_power">Max Power</button>
                 <button class="button is-small" data-metric="avg_hr">Avg HR</button>
@@ -50,6 +51,7 @@
     const metricConfig = {
         duration:  { name: 'Duration',  unit: 'min', color: '#3273dc' },
         distance:  { name: 'Distance',  unit: 'mi',  color: '#23d160' },
+        elevation: { name: 'Elevation', unit: 'ft',  color: '#8B4513' },
         avg_power: { name: 'Avg Power', unit: 'W',   color: '#ffdd57' },
         max_power: { name: 'Max Power', unit: 'W',   color: '#ff9f43' },
         avg_hr:    { name: 'Avg HR',    unit: 'bpm', color: '#ff3860' },

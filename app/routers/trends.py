@@ -29,7 +29,8 @@ def trends_data(range: str = "6m"):
     if offset:
         rows = db.execute(
             """SELECT start_date, moving_time, elapsed_time, distance,
-                      average_watts, max_watts, average_heartrate, max_heartrate, kilojoules, suffer_score
+                      average_watts, max_watts, average_heartrate, max_heartrate,
+                      kilojoules, suffer_score, elev_high, elev_low
                FROM activities
                WHERE start_date >= date('now', ?)
                ORDER BY start_date""",
@@ -38,7 +39,8 @@ def trends_data(range: str = "6m"):
     else:
         rows = db.execute(
             """SELECT start_date, moving_time, elapsed_time, distance,
-                      average_watts, max_watts, average_heartrate, max_heartrate, kilojoules, suffer_score
+                      average_watts, max_watts, average_heartrate, max_heartrate,
+                      kilojoules, suffer_score, elev_high, elev_low
                FROM activities
                ORDER BY start_date"""
         ).fetchall()
@@ -54,6 +56,7 @@ def trends_data(range: str = "6m"):
         "max_hr": [],
         "energy": [],
         "suffer_score": [],
+        "elevation": [],
     }
 
     for r in rows:
@@ -70,5 +73,9 @@ def trends_data(range: str = "6m"):
         data["max_hr"].append(r["max_heartrate"])
         data["energy"].append(r["kilojoules"])
         data["suffer_score"].append(r["suffer_score"])
+        if r["elev_high"] is not None and r["elev_low"] is not None:
+            data["elevation"].append(round((r["elev_high"] - r["elev_low"]) * 3.28084))
+        else:
+            data["elevation"].append(None)
 
     return JSONResponse(data)
