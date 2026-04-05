@@ -104,6 +104,25 @@
     <h2 class="title is-5">Activity Data ({{ stream_count }} data points)</h2>
     {{ chart_html | safe }}
 </div>
+<script>
+(function() {
+    var chartDiv = document.querySelector('.js-plotly-plot');
+    if (!chartDiv) return;
+
+    var dark = { font: { color: '#f0f0f0' }, xaxis: { gridcolor: '#444', linecolor: '#444' }, yaxis: { gridcolor: '#444', linecolor: '#444' } };
+    var light = { font: { color: '#2e2e2e' }, xaxis: { gridcolor: '#e0e0e0', linecolor: '#e0e0e0' }, yaxis: { gridcolor: '#e0e0e0', linecolor: '#e0e0e0' } };
+
+    function applyTheme() {
+        var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        Plotly.relayout(chartDiv, isDark ? dark : light);
+    }
+
+    applyTheme();
+    document.getElementById('theme-toggle').addEventListener('click', function() {
+        setTimeout(applyTheme, 50);
+    });
+})();
+</script>
 {% else %}
 <div class="notification is-warning is-light mt-5">
     <p>No stream data available for this activity.</p>
