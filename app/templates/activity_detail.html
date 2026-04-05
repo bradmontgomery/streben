@@ -47,35 +47,27 @@
         </div>
     </div>
     {% endif %}
-    {% if activity.average_watts %}
+    {% if activity.elev_high is not none and activity.elev_low is not none %}
     <div class="level-item has-text-centered">
         <div>
-            <p class="heading">Avg Power</p>
-            <p class="title is-4">{{ "%.0f"|format(activity.average_watts) }} W</p>
+            <p class="heading">Elevation</p>
+            <p class="title is-4">{{ "%.0f"|format((activity.elev_high - activity.elev_low) * 3.28084) }} ft</p>
         </div>
     </div>
     {% endif %}
-    {% if activity.max_watts %}
+    {% if activity.average_watts or activity.max_watts %}
     <div class="level-item has-text-centered">
         <div>
-            <p class="heading">Max Power</p>
-            <p class="title is-4">{{ "%.0f"|format(activity.max_watts) }} W</p>
+            <p class="heading">Avg / Max Power</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.average_watts or 0) }} / {{ "%.0f"|format(activity.max_watts or 0) }} W</p>
         </div>
     </div>
     {% endif %}
-    {% if activity.average_heartrate %}
+    {% if activity.average_heartrate or activity.max_heartrate %}
     <div class="level-item has-text-centered">
         <div>
-            <p class="heading">Avg HR</p>
-            <p class="title is-4">{{ "%.0f"|format(activity.average_heartrate) }} bpm</p>
-        </div>
-    </div>
-    {% endif %}
-    {% if activity.max_heartrate %}
-    <div class="level-item has-text-centered">
-        <div>
-            <p class="heading">Max HR</p>
-            <p class="title is-4">{{ "%.0f"|format(activity.max_heartrate) }} bpm</p>
+            <p class="heading">Avg / Max HR</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.average_heartrate or 0) }} / {{ "%.0f"|format(activity.max_heartrate or 0) }} bpm</p>
         </div>
     </div>
     {% endif %}
