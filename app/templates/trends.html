@@ -31,6 +31,11 @@
                 <button class="button is-small" data-metric="suffer_score">Suffer Score</button>
             </div>
         </div>
+        <div class="level-item ml-4">
+            <label class="checkbox">
+                <input type="checkbox" id="trend-toggle"> Trend line
+            </label>
+        </div>
     </div>
 </div>
 
@@ -55,18 +60,64 @@
 
     let currentRange = '6m';
     let currentMetric = 'duration';
+    let showTrend = false;
     let chartData = null;
+
+    function linearRegression(values) {
+        const pts = [];
+        for (let i = 0; i < values.length; i++) {
+            if (values[i] != null) pts.push({ x: i, y: values[i] });
+        }
+        if (pts.length < 2) return null;
+        const n = pts.length;
+        const sx = pts.reduce((s, p) => s + p.x, 0);
+        const sy = pts.reduce((s, p) => s + p.y, 0);
+        const sxy = pts.reduce((s, p) => s + p.x * p.y, 0);
+        const sxx = pts.reduce((s, p) => s + p.x * p.x, 0);
+        const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+        const intercept = (sy - slope * sx) / n;
+        return values.map((_, i) => Math.round((slope * i + intercept) * 100) / 100);
+    }
 
     function buildOption() {
         if (!chartData) return {};
         const cfg = metricConfig[currentMetric];
         const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+        const series = [{
+            name: cfg.name,
+            type: 'line',
+            data: chartData[currentMetric],
+            showSymbol: chartData.dates.length < 60,
+            smooth: true,
+            lineStyle: { color: cfg.color, width: 2 },
+            itemStyle: { color: cfg.color },
+            areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: cfg.color + '40' },
+                { offset: 1, color: cfg.color + '05' },
+            ])},
+        }];
+        if (showTrend) {
+            const trendData = linearRegression(chartData[currentMetric]);
+            if (trendData) {
+                series.push({
+                    name: 'Trend',
+                    type: 'line',
+                    data: trendData,
+                    showSymbol: false,
+                    lineStyle: { color: isDark ? '#aaa' : '#888', width: 2, type: 'dashed' },
+                    itemStyle: { color: isDark ? '#aaa' : '#888' },
+                });
+            }
+        }
         return {
             tooltip: {
                 trigger: 'axis',
                 formatter: params => {
-                    const p = params[0];
-                    return p.name + '<br>' + cfg.name + ': ' + (p.value != null ? p.value + ' ' + cfg.unit : 'N/A');
+                    let out = params[0].name;
+                    for (const p of params) {
+                        out += '<br>' + p.seriesName + ': ' + (p.value != null ? p.value + ' ' + cfg.unit : 'N/A');
+                    }
+                    return out;
                 },
             },
             xAxis: {
@@ -81,18 +132,7 @@
                 axisLabel: { color: isDark ? '#ccc' : '#666' },
                 splitLine: { lineStyle: { color: isDark ? '#444' : '#e0e0e0' } },
             },
-            series: [{
-                type: 'line',
-                data: chartData[currentMetric],
-                showSymbol: chartData.dates.length < 60,
-                smooth: true,
-                lineStyle: { color: cfg.color, width: 2 },
-                itemStyle: { color: cfg.color },
-                areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                    { offset: 0, color: cfg.color + '40' },
-                    { offset: 1, color: cfg.color + '05' },
-                ])},
-            }],
+            series,
             backgroundColor: 'transparent',
             grid: { left: 60, right: 20, top: 40, bottom: 40 },
         };
@@ -121,6 +161,12 @@
         document.querySelectorAll('#metric-buttons .button').forEach(b => b.classList.remove('is-info', 'is-selected'));
         btn.classList.add('is-info', 'is-selected');
         currentMetric = btn.dataset.metric;
+        chart.setOption(buildOption(), true);
+    });
+
+    // Trend line toggle
+    document.getElementById('trend-toggle').addEventListener('change', e => {
+        showTrend = e.target.checked;
         chart.setOption(buildOption(), true);
     });
 
