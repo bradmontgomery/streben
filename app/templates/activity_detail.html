@@ -10,7 +10,18 @@
     </ul>
 </nav>
 
-<h1 class="title">{{ activity.name or "Activity" }}</h1>
+<div class="level mb-0">
+    <div class="level-left">
+        <h1 class="title">{{ activity.name or "Activity" }}</h1>
+    </div>
+    {% if activity.strava_id %}
+    <div class="level-right">
+        <a class="tag is-link is-medium" href="https://www.strava.com/activities/{{ activity.strava_id }}" target="_blank" rel="noopener">
+            View on Strava &nearr;
+        </a>
+    </div>
+    {% endif %}
+</div>
 <p class="subtitle">
     {{ activity.start_date[:10] if activity.start_date else "" }}
     <span class="tag {% if activity.source == 'strava' %}is-warning{% else %}is-info{% endif %} ml-2">
