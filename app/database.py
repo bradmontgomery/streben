@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS activities (
     elev_low REAL,
     kilojoules REAL,
     suffer_score REAL,
+    total_elevation_gain REAL,
+    calories REAL,
+    description TEXT,
+    device_name TEXT,
+    average_temp REAL,
+    summary_polyline TEXT,
     fit_filename TEXT,
     raw_data TEXT
 );
@@ -66,7 +72,23 @@ def get_db() -> sqlite3.Connection:
     return conn
 
 
+MIGRATIONS = [
+    ("total_elevation_gain", "ALTER TABLE activities ADD COLUMN total_elevation_gain REAL"),
+    ("calories", "ALTER TABLE activities ADD COLUMN calories REAL"),
+    ("description", "ALTER TABLE activities ADD COLUMN description TEXT"),
+    ("device_name", "ALTER TABLE activities ADD COLUMN device_name TEXT"),
+    ("average_temp", "ALTER TABLE activities ADD COLUMN average_temp REAL"),
+    ("summary_polyline", "ALTER TABLE activities ADD COLUMN summary_polyline TEXT"),
+]
+
+
 def init_db():
     conn = get_db()
     conn.executescript(SCHEMA)
+    # Migrate existing databases: add columns if missing
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(activities)").fetchall()}
+    for col_name, sql in MIGRATIONS:
+        if col_name not in existing:
+            conn.execute(sql)
+    conn.commit()
     conn.close()

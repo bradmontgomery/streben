@@ -84,8 +84,10 @@ def strava_sync():
                (strava_id, source, name, sport_type, start_date, moving_time, elapsed_time,
                 distance, average_watts, max_watts, weighted_average_watts,
                 average_heartrate, max_heartrate, average_cadence, average_speed, max_speed,
-                elev_high, elev_low, kilojoules, suffer_score, raw_data)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                elev_high, elev_low, kilojoules, suffer_score,
+                total_elevation_gain, calories, description, device_name, average_temp,
+                summary_polyline, raw_data)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (
                 strava_id,
                 "strava",
@@ -107,6 +109,12 @@ def strava_sync():
                 act.get("elev_low"),
                 act.get("kilojoules"),
                 act.get("suffer_score"),
+                act.get("total_elevation_gain"),
+                act.get("calories"),
+                act.get("description"),
+                act.get("device_name"),
+                act.get("average_temp"),
+                (act.get("map") or {}).get("summary_polyline"),
                 json.dumps(act),
             ),
         )

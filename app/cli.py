@@ -1,5 +1,6 @@
 """CLI commands for managing the Strava activity tracker."""
 import argparse
+import json
 import sys
 import time
 
@@ -53,6 +54,48 @@ def backfill_streams(args):
     print(f"\nDone: {filled} backfilled, {errors} errors, {len(rows) - total} remaining.")
 
 
+def backfill_fields(args):
+    """Re-extract fields from stored raw_data JSON for existing activities."""
+    init_db()
+    db = get_db()
+    rows = db.execute(
+        "SELECT id, raw_data FROM activities WHERE source = 'strava' AND raw_data IS NOT NULL"
+    ).fetchall()
+
+    if not rows:
+        print("No Strava activities with raw_data found.")
+        db.close()
+        return
+
+    updated = 0
+    for row in rows:
+        act = json.loads(row["raw_data"])
+        db.execute(
+            """UPDATE activities SET
+                total_elevation_gain = ?,
+                calories = ?,
+                description = ?,
+                device_name = ?,
+                average_temp = ?,
+                summary_polyline = ?
+               WHERE id = ?""",
+            (
+                act.get("total_elevation_gain"),
+                act.get("calories"),
+                act.get("description"),
+                act.get("device_name"),
+                act.get("average_temp"),
+                (act.get("map") or {}).get("summary_polyline"),
+                row["id"],
+            ),
+        )
+        updated += 1
+
+    db.commit()
+    db.close()
+    print(f"Updated {updated} activities from stored raw_data.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Strava Activity Tracker CLI")
     sub = parser.add_subparsers(dest="command")
@@ -60,6 +103,9 @@ def main():
     bf = sub.add_parser("backfill-streams", help="Fetch missing stream data from Strava")
     bf.add_argument("--limit", type=int, default=None, help="Max number of activities to process")
     bf.set_defaults(func=backfill_streams)
+
+    bf2 = sub.add_parser("backfill-fields", help="Re-extract fields from stored raw_data JSON")
+    bf2.set_defaults(func=backfill_fields)
 
     args = parser.parse_args()
     if not args.command:

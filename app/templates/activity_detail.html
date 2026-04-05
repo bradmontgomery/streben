@@ -30,6 +30,9 @@
     {% if activity.sport_type %}
     <span class="tag is-light ml-1">{{ activity.sport_type }}</span>
     {% endif %}
+    {% if activity.device_name %}
+    <span class="tag is-light ml-1">{{ activity.device_name }}</span>
+    {% endif %}
 </p>
 
 <div class="level">
@@ -47,7 +50,14 @@
         </div>
     </div>
     {% endif %}
-    {% if activity.elev_high is not none and activity.elev_low is not none %}
+    {% if activity.total_elevation_gain is not none %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Elevation</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.total_elevation_gain * 3.28084) }} ft</p>
+        </div>
+    </div>
+    {% elif activity.elev_high is not none and activity.elev_low is not none %}
     <div class="level-item has-text-centered">
         <div>
             <p class="heading">Elevation</p>
@@ -79,6 +89,14 @@
         </div>
     </div>
     {% endif %}
+    {% if activity.calories %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Calories</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.calories) }}</p>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 {% if chart_html %}
@@ -97,10 +115,16 @@
 </div>
 {% endif %}
 
-{% if activity.weighted_average_watts or activity.average_cadence or activity.average_speed %}
+{% if activity.weighted_average_watts or activity.average_cadence or activity.average_speed or activity.stopped_time or activity.average_temp is not none %}
 <div class="box mt-5">
     <h2 class="title is-5">Additional Stats</h2>
-    <div class="columns">
+    <div class="columns is-multiline">
+        {% if activity.elapsed_time and activity.stopped_display %}
+        <div class="column">
+            <p class="heading">Elapsed Time</p>
+            <p>{{ activity.elapsed_display }} <span class="has-text-grey is-size-7">({{ activity.stopped_display }} stopped)</span></p>
+        </div>
+        {% endif %}
         {% if activity.weighted_average_watts %}
         <div class="column">
             <p class="heading">Normalized Power</p>
@@ -119,6 +143,12 @@
             <p>{{ "%.1f"|format(activity.average_speed * 2.237) }} mph</p>
         </div>
         {% endif %}
+        {% if activity.average_temp is not none %}
+        <div class="column">
+            <p class="heading">Avg Temp</p>
+            <p>{{ "%.0f"|format(activity.average_temp * 9/5 + 32) }} °F</p>
+        </div>
+        {% endif %}
         {% if activity.suffer_score %}
         <div class="column">
             <p class="heading">Suffer Score</p>
@@ -126,6 +156,13 @@
         </div>
         {% endif %}
     </div>
+</div>
+{% endif %}
+
+{% if activity.description %}
+<div class="box mt-5">
+    <h2 class="title is-5">Description</h2>
+    <p>{{ activity.description }}</p>
 </div>
 {% endif %}
 {% endblock %}
