@@ -115,6 +115,36 @@
 </div>
 {% endif %}
 
+{% if route_coords %}
+<div class="box mt-5">
+    <h2 class="title is-5">Route Map</h2>
+    <div id="route-map" style="height: 400px; border-radius: 6px;"></div>
+</div>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function() {
+    var coords = {{ route_coords | safe }};
+    if (!coords.length) return;
+
+    var map = L.map('route-map');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+    }).addTo(map);
+
+    var polyline = L.polyline(coords, { color: '#fc4c02', weight: 3 }).addTo(map);
+    map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+
+    // Start/end markers
+    L.circleMarker(coords[0], { radius: 6, color: '#2ecc40', fillColor: '#2ecc40', fillOpacity: 1 })
+        .bindPopup('Start').addTo(map);
+    L.circleMarker(coords[coords.length - 1], { radius: 6, color: '#e74c3c', fillColor: '#e74c3c', fillOpacity: 1 })
+        .bindPopup('End').addTo(map);
+})();
+</script>
+{% endif %}
+
 {% if activity.weighted_average_watts or activity.average_cadence or activity.average_speed or activity.stopped_time or activity.average_temp is not none %}
 <div class="box mt-5">
     <h2 class="title is-5">Additional Stats</h2>
