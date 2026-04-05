@@ -1,7 +1,7 @@
 [project]
 name = "strava-api-thing"
-version = "0.1.0"
-description = "Jupyter notebook-based project for exploring Strava cycling activity API and analyzing FIT files"
+version = "0.2.0"
+description = "Local web app for syncing, storing, and visualizing cycling activity data from Strava and Garmin FIT files"
 requires-python = ">=3.11"
 authors = [
     {name = "Brad Montgomery"}
