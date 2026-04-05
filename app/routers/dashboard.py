@@ -9,17 +9,31 @@ templates = Jinja2Templates(directory="app/templates")
 
 
 @router.get("/")
-def dashboard(request: Request, page: int = 1, per_page: int = 100):
+def dashboard(request: Request, page: int = 1, per_page: int = 100, sport_type: str = ""):
     page = max(1, page)
     per_page = max(1, min(per_page, 500))
     offset = (page - 1) * per_page
+    sport_type = sport_type.strip()
 
     db = get_db()
-    total = db.execute("SELECT COUNT(*) FROM activities").fetchone()[0]
-    rows = db.execute(
-        "SELECT * FROM activities ORDER BY start_date DESC LIMIT ? OFFSET ?",
-        (per_page, offset),
-    ).fetchall()
+    sport_types = [
+        r[0] for r in db.execute(
+            "SELECT DISTINCT sport_type FROM activities WHERE sport_type IS NOT NULL ORDER BY sport_type"
+        ).fetchall()
+    ]
+
+    if sport_type:
+        total = db.execute("SELECT COUNT(*) FROM activities WHERE sport_type = ?", (sport_type,)).fetchone()[0]
+        rows = db.execute(
+            "SELECT * FROM activities WHERE sport_type = ? ORDER BY start_date DESC LIMIT ? OFFSET ?",
+            (sport_type, per_page, offset),
+        ).fetchall()
+    else:
+        total = db.execute("SELECT COUNT(*) FROM activities").fetchone()[0]
+        rows = db.execute(
+            "SELECT * FROM activities ORDER BY start_date DESC LIMIT ? OFFSET ?",
+            (per_page, offset),
+        ).fetchall()
 
     activity_ids = [r["id"] for r in rows]
     has_streams = set()
@@ -44,4 +58,6 @@ def dashboard(request: Request, page: int = 1, per_page: int = 100):
         "total_pages": total_pages,
         "total": total,
         "has_streams": has_streams,
+        "sport_types": sport_types,
+        "current_sport_type": sport_type,
     })
