@@ -113,7 +113,7 @@
     var light = { font: { color: '#2e2e2e' }, xaxis: { gridcolor: '#e0e0e0', linecolor: '#e0e0e0' }, yaxis: { gridcolor: '#e0e0e0', linecolor: '#e0e0e0' } };
 
     function applyTheme() {
-        var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        var isDark = (localStorage.getItem('theme') || 'dark') === 'dark';
         Plotly.relayout(chartDiv, isDark ? dark : light);
     }
 
@@ -146,11 +146,20 @@
     var coords = {{ route_coords | safe }};
     if (!coords.length) return;
 
+    var tiles = {
+        light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            maxZoom: 19
+        }),
+        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            maxZoom: 19
+        })
+    };
+
     var map = L.map('route-map');
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19
-    }).addTo(map);
+    var isDark = (localStorage.getItem('theme') || 'dark') === 'dark';
+    tiles[isDark ? 'dark' : 'light'].addTo(map);
 
     var polyline = L.polyline(coords, { color: '#fc4c02', weight: 3 }).addTo(map);
     map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
@@ -160,6 +169,14 @@
         .bindPopup('Start').addTo(map);
     L.circleMarker(coords[coords.length - 1], { radius: 6, color: '#e74c3c', fillColor: '#e74c3c', fillOpacity: 1 })
         .bindPopup('End').addTo(map);
+
+    document.getElementById('theme-toggle').addEventListener('click', function() {
+        setTimeout(function() {
+            var nowDark = (localStorage.getItem('theme') || 'dark') === 'dark';
+            map.removeLayer(tiles[nowDark ? 'light' : 'dark']);
+            tiles[nowDark ? 'dark' : 'light'].addTo(map);
+        }, 50);
+    });
 })();
 </script>
 {% endif %}
