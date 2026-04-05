@@ -38,7 +38,10 @@
             {% for a in activities %}
             <tr>
                 <td><a href="/activities/{{ a.id }}">{{ a.start_date[:10] if a.start_date else "—" }}</a></td>
-                <td><a href="/activities/{{ a.id }}">{{ a.name or "Untitled" }}</a></td>
+                <td>
+                    <a href="/activities/{{ a.id }}">{{ a.name or "Untitled" }}</a>
+                    {% if a.id not in has_streams %}<span class="has-text-warning" title="No stream data">&#9888;</span>{% endif %}
+                </td>
                 <td>
                     <span class="tag {% if a.source == 'strava' %}is-warning{% else %}is-info{% endif %}">
                         {{ a.source }}

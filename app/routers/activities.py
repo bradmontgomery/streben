@@ -27,9 +27,11 @@ def activity_detail(request: Request, activity_id: int):
 
     streams = [dict(r) for r in stream_rows]
     chart_html = build_streams_chart(streams)
+    flash = request.query_params.get("flash")
 
     return templates.TemplateResponse(request, "activity_detail.html", {
         "activity": activity,
         "chart_html": chart_html,
         "stream_count": len(streams),
+        "flash": flash,
     })

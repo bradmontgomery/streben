@@ -20,6 +20,16 @@ def dashboard(request: Request, page: int = 1, per_page: int = 100):
         "SELECT * FROM activities ORDER BY start_date DESC LIMIT ? OFFSET ?",
         (per_page, offset),
     ).fetchall()
+
+    activity_ids = [r["id"] for r in rows]
+    has_streams = set()
+    if activity_ids:
+        placeholders = ",".join("?" * len(activity_ids))
+        stream_rows = db.execute(
+            f"SELECT DISTINCT activity_id FROM activity_streams WHERE activity_id IN ({placeholders})",
+            activity_ids,
+        ).fetchall()
+        has_streams = {r["activity_id"] for r in stream_rows}
     db.close()
 
     activities = [Activity.from_row(r) for r in rows]
@@ -33,4 +43,5 @@ def dashboard(request: Request, page: int = 1, per_page: int = 100):
         "per_page": per_page,
         "total_pages": total_pages,
         "total": total,
+        "has_streams": has_streams,
     })
