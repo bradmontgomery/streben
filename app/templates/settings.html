@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Strava Tracker{% endblock %}
+
+{% block content %}
+<h1 class="title">Strava Settings</h1>
+
+<div class="box">
+    <h2 class="title is-5">API Credentials</h2>
+    <form method="post" action="/settings">
+        <div class="field">
+            <label class="label">Client ID</label>
+            <div class="control">
+                <input class="input" type="text" name="client_id"
+                       value="{{ auth.client_id if auth else '' }}"
+                       placeholder="Your Strava App Client ID">
+            </div>
+        </div>
+        <div class="field">
+            <label class="label">Client Secret</label>
+            <div class="control">
+                <input class="input" type="password" name="client_secret"
+                       value="{{ auth.client_secret if auth else '' }}"
+                       placeholder="Your Strava App Client Secret">
+            </div>
+        </div>
+        <div class="field">
+            <button class="button is-primary" type="submit">Save Credentials</button>
+        </div>
+    </form>
+</div>
+
+<div class="box">
+    <h2 class="title is-5">Connection Status</h2>
+    {% if auth and auth.access_token %}
+        <div class="notification is-success is-light">
+            <strong>Connected to Strava</strong>
+            {% if auth.expires_at %}
+                <br>Token expires at: <span id="token-expiry">{{ auth.expires_at }}</span>
+                <script>
+                    (() => {
+                        const el = document.getElementById('token-expiry');
+                        const ts = parseInt(el.textContent, 10);
+                        if (!isNaN(ts)) {
+                            el.textContent = new Date(ts * 1000).toLocaleString();
+                        }
+                    })();
+                </script>
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="notification is-warning is-light">
+            <strong>Not connected</strong> — save your credentials above, then connect.
+        </div>
+    {% endif %}
+
+    {% if auth and auth.client_id %}
+    <a href="/strava/connect" class="button is-link">
+        {% if auth.access_token %}Reconnect to Strava{% else %}Connect to Strava{% endif %}
+    </a>
+    <p class="help mt-2">
+        Make sure your Strava app's redirect URI is set to:
+        <code>http://localhost:8000/strava/callback</code>
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

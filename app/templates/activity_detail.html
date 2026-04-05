@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}{{ activity.name or "Activity" }} - Strava Tracker{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="breadcrumbs">
+    <ul>
+        <li><a href="/">Activities</a></li>
+        <li class="is-active"><a>{{ activity.name or "Activity" }}</a></li>
+    </ul>
+</nav>
+
+<div class="level mb-0">
+    <div class="level-left">
+        <h1 class="title">{{ activity.name or "Activity" }}</h1>
+    </div>
+    {% if activity.strava_id %}
+    <div class="level-right">
+        <a class="tag is-link is-medium" href="https://www.strava.com/activities/{{ activity.strava_id }}" target="_blank" rel="noopener">
+            View on Strava &nearr;
+        </a>
+    </div>
+    {% endif %}
+</div>
+<p class="subtitle">
+    {{ activity.start_date[:10] if activity.start_date else "" }}
+    <span class="tag {% if activity.source == 'strava' %}is-warning{% else %}is-info{% endif %} ml-2">
+        {{ activity.source }}
+    </span>
+    {% if activity.sport_type %}
+    <span class="tag is-light ml-1">{{ activity.sport_type }}</span>
+    {% endif %}
+    {% if activity.device_name %}
+    <span class="tag is-light ml-1">{{ activity.device_name }}</span>
+    {% endif %}
+</p>
+
+<div class="level">
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Duration</p>
+            <p class="title is-4">{{ activity.duration_display }}</p>
+        </div>
+    </div>
+    {% if activity.distance_mi %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Distance</p>
+            <p class="title is-4">{{ "%.1f"|format(activity.distance_mi) }} mi</p>
+        </div>
+    </div>
+    {% endif %}
+    {% if activity.total_elevation_gain is not none %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Elevation</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.total_elevation_gain * 3.28084) }} ft</p>
+        </div>
+    </div>
+    {% elif activity.elev_high is not none and activity.elev_low is not none %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Elevation</p>
+            <p class="title is-4">{{ "%.0f"|format((activity.elev_high - activity.elev_low) * 3.28084) }} ft</p>
+        </div>
+    </div>
+    {% endif %}
+    {% if activity.average_watts or activity.max_watts %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Avg / Max Power</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.average_watts or 0) }} / {{ "%.0f"|format(activity.max_watts or 0) }} W</p>
+        </div>
+    </div>
+    {% endif %}
+    {% if activity.average_heartrate or activity.max_heartrate %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Avg / Max HR</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.average_heartrate or 0) }} / {{ "%.0f"|format(activity.max_heartrate or 0) }} bpm</p>
+        </div>
+    </div>
+    {% endif %}
+    {% if activity.kilojoules %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Energy</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.kilojoules) }} kJ</p>
+        </div>
+    </div>
+    {% endif %}
+    {% if activity.calories %}
+    <div class="level-item has-text-centered">
+        <div>
+            <p class="heading">Calories</p>
+            <p class="title is-4">{{ "%.0f"|format(activity.calories) }}</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% if chart_html %}
+<div class="box mt-5">
+    <h2 class="title is-5">Activity Data ({{ stream_count }} data points)</h2>
+    {{ chart_html | safe }}
+</div>
+<script>
+(function() {
+    var chartDiv = document.querySelector('.js-plotly-plot');
+    if (!chartDiv) return;
+
+    var dark = { font: { color: '#f0f0f0' }, xaxis: { gridcolor: '#444', linecolor: '#444' }, yaxis: { gridcolor: '#444', linecolor: '#444' } };
+    var light = { font: { color: '#2e2e2e' }, xaxis: { gridcolor: '#e0e0e0', linecolor: '#e0e0e0' }, yaxis: { gridcolor: '#e0e0e0', linecolor: '#e0e0e0' } };
+
+    function applyTheme() {
+        var isDark = (localStorage.getItem('theme') || 'dark') === 'dark';
+        Plotly.relayout(chartDiv, isDark ? dark : light);
+    }
+
+    applyTheme();
+    document.getElementById('theme-toggle').addEventListener('click', function() {
+        setTimeout(applyTheme, 50);
+    });
+})();
+</script>
+{% else %}
+<div class="notification is-warning is-light mt-5">
+    <p>No stream data available for this activity.</p>
+    {% if activity.source == 'strava' and activity.strava_id %}
+    <form method="post" action="/strava/fetch-streams/{{ activity.id }}" class="mt-3">
+        <button class="button is-info is-small" type="submit">Fetch Streams from Strava</button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if route_coords %}
+<div class="box mt-5">
+    <h2 class="title is-5">Route Map</h2>
+    <div id="route-map" style="height: 400px; border-radius: 6px;"></div>
+</div>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.fullscreen@5.3.1/dist/Control.FullScreen.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.fullscreen@5.3.1/dist/Control.FullScreen.umd.js"></script>
+<script>
+(function() {
+    var coords = {{ route_coords | safe }};
+    if (!coords.length) return;
+
+    var tiles = {
+        light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            maxZoom: 19
+        }),
+        dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+            maxZoom: 19
+        })
+    };
+
+    var map = L.map('route-map');
+    map.addControl(new L.Control.FullScreen());
+    var isDark = (localStorage.getItem('theme') || 'dark') === 'dark';
+    tiles[isDark ? 'dark' : 'light'].addTo(map);
+
+    var polyline = L.polyline(coords, { color: '#fc4c02', weight: 3 }).addTo(map);
+    map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+
+    // Start/end markers
+    L.circleMarker(coords[0], { radius: 6, color: '#2ecc40', fillColor: '#2ecc40', fillOpacity: 1 })
+        .bindPopup('Start').addTo(map);
+    L.circleMarker(coords[coords.length - 1], { radius: 6, color: '#e74c3c', fillColor: '#e74c3c', fillOpacity: 1 })
+        .bindPopup('End').addTo(map);
+
+    document.getElementById('theme-toggle').addEventListener('click', function() {
+        setTimeout(function() {
+            var nowDark = (localStorage.getItem('theme') || 'dark') === 'dark';
+            map.removeLayer(tiles[nowDark ? 'light' : 'dark']);
+            tiles[nowDark ? 'dark' : 'light'].addTo(map);
+        }, 50);
+    });
+})();
+</script>
+{% endif %}
+
+{% if activity.weighted_average_watts or activity.average_cadence or activity.average_speed or activity.stopped_time or activity.average_temp is not none %}
+<div class="box mt-5">
+    <h2 class="title is-5">Additional Stats</h2>
+    <div class="columns is-multiline">
+        {% if activity.elapsed_time and activity.stopped_display %}
+        <div class="column">
+            <p class="heading">Elapsed Time</p>
+            <p>{{ activity.elapsed_display }} <span class="has-text-grey is-size-7">({{ activity.stopped_display }} stopped)</span></p>
+        </div>
+        {% endif %}
+        {% if activity.weighted_average_watts %}
+        <div class="column">
+            <p class="heading">Normalized Power</p>
+            <p>{{ "%.0f"|format(activity.weighted_average_watts) }} W</p>
+        </div>
+        {% endif %}
+        {% if activity.average_cadence %}
+        <div class="column">
+            <p class="heading">Avg Cadence</p>
+            <p>{{ "%.0f"|format(activity.average_cadence) }} rpm</p>
+        </div>
+        {% endif %}
+        {% if activity.average_speed %}
+        <div class="column">
+            <p class="heading">Avg Speed</p>
+            <p>{{ "%.1f"|format(activity.average_speed * 2.237) }} mph</p>
+        </div>
+        {% endif %}
+        {% if activity.average_temp is not none %}
+        <div class="column">
+            <p class="heading">Avg Temp</p>
+            <p>{{ "%.0f"|format(activity.average_temp * 9/5 + 32) }} °F</p>
+        </div>
+        {% endif %}
+        {% if activity.suffer_score %}
+        <div class="column">
+            <p class="heading">Suffer Score</p>
+            <p>{{ "%.0f"|format(activity.suffer_score) }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{% if activity.description %}
+<div class="box mt-5">
+    <h2 class="title is-5">Description</h2>
+    <p>{{ activity.description }}</p>
+</div>
+{% endif %}
+{% endblock %}

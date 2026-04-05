@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Trends - Strava Tracker{% endblock %}
+
+{% block content %}
+<h1 class="title">Trends</h1>
+
+<div class="level">
+    <div class="level-left">
+        <div class="level-item">
+            <div class="buttons has-addons" id="range-buttons">
+                <button class="button is-small" data-range="1w">1W</button>
+                <button class="button is-small" data-range="1m">1M</button>
+                <button class="button is-small" data-range="3m">3M</button>
+                <button class="button is-small is-info is-selected" data-range="6m">6M</button>
+                <button class="button is-small" data-range="1y">1Y</button>
+                <button class="button is-small" data-range="all">All</button>
+            </div>
+        </div>
+    </div>
+    <div class="level-right">
+        <div class="level-item">
+            <div class="buttons has-addons" id="metric-buttons">
+                <button class="button is-small is-info is-selected" data-metric="duration">Duration</button>
+                <button class="button is-small" data-metric="distance">Distance</button>
+                <button class="button is-small" data-metric="elevation">Elevation</button>
+                <button class="button is-small" data-metric="avg_power">Avg Power</button>
+                <button class="button is-small" data-metric="max_power">Max Power</button>
+                <button class="button is-small" data-metric="avg_hr">Avg HR</button>
+                <button class="button is-small" data-metric="max_hr">Max HR</button>
+                <button class="button is-small" data-metric="energy">Energy</button>
+                <button class="button is-small" data-metric="suffer_score">Suffer Score</button>
+            </div>
+        </div>
+        <div class="level-item ml-4">
+            <label class="checkbox">
+                <input type="checkbox" id="trend-toggle"> Trend line
+            </label>
+        </div>
+    </div>
+</div>
+
+<div class="box">
+    <div id="chart" style="width: 100%; height: 450px;"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script>
+(() => {
+    const chart = echarts.init(document.getElementById('chart'), null, { renderer: 'canvas' });
+    const metricConfig = {
+        duration:  { name: 'Duration',  unit: 'min', color: '#3273dc' },
+        distance:  { name: 'Distance',  unit: 'mi',  color: '#23d160' },
+        elevation: { name: 'Elevation', unit: 'ft',  color: '#8B4513' },
+        avg_power: { name: 'Avg Power', unit: 'W',   color: '#ffdd57' },
+        max_power: { name: 'Max Power', unit: 'W',   color: '#ff9f43' },
+        avg_hr:    { name: 'Avg HR',    unit: 'bpm', color: '#ff3860' },
+        max_hr:    { name: 'Max HR',    unit: 'bpm', color: '#cc2952' },
+        energy:       { name: 'Energy',       unit: 'kJ',  color: '#00d1b2' },
+        suffer_score: { name: 'Suffer Score', unit: '',    color: '#b86bff' },
+    };
+
+    let currentRange = '6m';
+    let currentMetric = 'duration';
+    let showTrend = false;
+    let chartData = null;
+
+    function linearRegression(values) {
+        const pts = [];
+        for (let i = 0; i < values.length; i++) {
+            if (values[i] != null) pts.push({ x: i, y: values[i] });
+        }
+        if (pts.length < 2) return null;
+        const n = pts.length;
+        const sx = pts.reduce((s, p) => s + p.x, 0);
+        const sy = pts.reduce((s, p) => s + p.y, 0);
+        const sxy = pts.reduce((s, p) => s + p.x * p.y, 0);
+        const sxx = pts.reduce((s, p) => s + p.x * p.x, 0);
+        const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+        const intercept = (sy - slope * sx) / n;
+        return values.map((_, i) => Math.round((slope * i + intercept) * 100) / 100);
+    }
+
+    function buildOption() {
+        if (!chartData) return {};
+        const cfg = metricConfig[currentMetric];
+        const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+        const series = [{
+            name: cfg.name,
+            type: 'line',
+            data: chartData[currentMetric],
+            showSymbol: chartData.dates.length < 60,
+            smooth: true,
+            lineStyle: { color: cfg.color, width: 2 },
+            itemStyle: { color: cfg.color },
+            areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: cfg.color + '40' },
+                { offset: 1, color: cfg.color + '05' },
+            ])},
+        }];
+        if (showTrend) {
+            const trendData = linearRegression(chartData[currentMetric]);
+            if (trendData) {
+                series.push({
+                    name: 'Trend',
+                    type: 'line',
+                    data: trendData,
+                    showSymbol: false,
+                    lineStyle: { color: isDark ? '#aaa' : '#888', width: 2, type: 'dashed' },
+                    itemStyle: { color: isDark ? '#aaa' : '#888' },
+                });
+            }
+        }
+        return {
+            tooltip: {
+                trigger: 'axis',
+                formatter: params => {
+                    let out = params[0].name;
+                    for (const p of params) {
+                        out += '<br>' + p.seriesName + ': ' + (p.value != null ? p.value + ' ' + cfg.unit : 'N/A');
+                    }
+                    return out;
+                },
+            },
+            xAxis: {
+                type: 'category',
+                data: chartData.dates,
+                axisLabel: { color: isDark ? '#ccc' : '#666' },
+            },
+            yAxis: {
+                type: 'value',
+                name: cfg.name + ' (' + cfg.unit + ')',
+                nameTextStyle: { color: isDark ? '#ccc' : '#666' },
+                axisLabel: { color: isDark ? '#ccc' : '#666' },
+                splitLine: { lineStyle: { color: isDark ? '#444' : '#e0e0e0' } },
+            },
+            series,
+            backgroundColor: 'transparent',
+            grid: { left: 60, right: 20, top: 40, bottom: 40 },
+        };
+    }
+
+    async function fetchData() {
+        const resp = await fetch('/api/trends?range=' + currentRange);
+        chartData = await resp.json();
+        chart.setOption(buildOption(), true);
+    }
+
+    // Range buttons
+    document.getElementById('range-buttons').addEventListener('click', e => {
+        const btn = e.target.closest('[data-range]');
+        if (!btn) return;
+        document.querySelectorAll('#range-buttons .button').forEach(b => b.classList.remove('is-info', 'is-selected'));
+        btn.classList.add('is-info', 'is-selected');
+        currentRange = btn.dataset.range;
+        fetchData();
+    });
+
+    // Metric buttons
+    document.getElementById('metric-buttons').addEventListener('click', e => {
+        const btn = e.target.closest('[data-metric]');
+        if (!btn) return;
+        document.querySelectorAll('#metric-buttons .button').forEach(b => b.classList.remove('is-info', 'is-selected'));
+        btn.classList.add('is-info', 'is-selected');
+        currentMetric = btn.dataset.metric;
+        chart.setOption(buildOption(), true);
+    });
+
+    // Trend line toggle
+    document.getElementById('trend-toggle').addEventListener('change', e => {
+        showTrend = e.target.checked;
+        chart.setOption(buildOption(), true);
+    });
+
+    // Resize
+    window.addEventListener('resize', () => chart.resize());
+
+    // React to theme changes
+    const observer = new MutationObserver(() => chart.setOption(buildOption(), true));
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+    fetchData();
+})();
+</script>
+{% endblock %}

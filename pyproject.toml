@@ -1,0 +1,46 @@
+[project]
+name = "strava-api-thing"
+version = "0.2.0"
+description = "Local web app for syncing, storing, and visualizing cycling activity data from Strava and Garmin FIT files"
+requires-python = ">=3.11"
+authors = [
+    {name = "Brad Montgomery"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.9",
+    "requests>=2.31.0",
+    "pandas>=2.0.0",
+    "plotly>=5.18.0",
+    "garmin-fit-sdk>=21.133.0",
+    "arrow>=1.3.0",
+    "certifi>=2024.0.0",
+]
+
+[project.scripts]
+strava-cli = "app.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[dependency-groups]
+dev = [
+    "jupyter>=1.0.0",
+    "notebook>=7.0.0",
+    "ipython>=8.15.0",
+    "ipykernel>=6.26.0",
+    "matplotlib-inline>=0.1.6",
+    "Pillow>=10.0.0",
+    "seaborn>=0.13.0",
+    "matplotlib>=3.8.0",
+    "fitdecode>=0.10.0",
+]

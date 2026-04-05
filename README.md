@@ -1,35 +1,53 @@
 # Strava API Thing
 
+A locally-running web application for syncing, storing, and visualizing cycling activity data from Strava and Garmin FIT files.
 
-This is a notebook to explore the Strava API, as well as performing various 
-functions against data.
+## Features
 
+- **Strava Sync** — OAuth integration to pull all activities and per-second stream data
+- **FIT File Upload** — Import activities directly from Garmin .fit files
+- **Activity Dashboard** — Paginated list of all activities with stream data indicators
+- **Activity Detail** — Summary stats and interactive Plotly charts of power, HR, cadence
+- **Trends** — Time-series charts (Apache ECharts) with metric toggles, time range selection, and trend lines
+- **Dark/Light Mode** — Theme toggle persisted in browser
 
-## TODO
+## Quick Start
 
-Explore various .fit file decoders:
+### Prerequisites
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/) (fast Python package manager)
 
-* https://pypi.org/project/fitdecode/
-* https://developer.garmin.com/fit/example-projects/python/
-* https://github.com/dtcooper/python-fitparse
+### Setup
 
-Explore whether or not I can "match" a workout file to an actual effort (Dynamic Time Warping)
+```bash
+# Install dependencies
+uv sync
 
-* https://makeabilitylab.github.io/physcomp/signals/ComparingSignals/index.html
-* https://www.theaidream.com/post/dynamic-time-warping-dtw-algorithm-in-time-series
-* https://dsp.stackexchange.com/questions/76673/what-algorithm-can-i-use-to-compare-two-signals-similarity
-* https://stackoverflow.com/questions/54278721/comparing-multiple-signals-for-similarity
+# Start the web server
+uv run uvicorn app.main:app --port 8000
+```
 
-ML Stuff?
+The app will be accessible at `http://localhost:8000`. The SQLite database is auto-created on first startup.
 
-* Use something like [Pycaret](https://pycaret.org/) to build some sort of model (time, heartrate, cadence, power) as inputs.
+### Connect to Strava
 
+1. [Create a Strava API application](https://developers.strava.com/docs/getting-started/)
+2. Go to Settings (`/settings`) and enter your Client ID and Client Secret
+3. Click "Connect to Strava" to complete the OAuth flow
+4. Use "Sync from Strava" on the dashboard to pull your activities
 
+### CLI
+
+```bash
+# Backfill missing stream data (preferred for large batches)
+uv run strava-cli backfill-streams [--limit N]
+```
+
+## Architecture
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for full technical details including database schema, data flows, routes, and UI documentation.
 
 ## Resources
 
-* Strava Developer Docs: https://developers.strava.com/docs/getting-started/
-    * Application Settings: https://www.strava.com/settings/api
-    * Activity Streams: https://developers.strava.com/docs/reference/#api-Streams-getActivityStreams
-    * Stream Sets: https://developers.strava.com/docs/reference/#api-models-StreamSet
-* Jupyter: https://jupyter.org/install
+- [Strava Developer Docs](https://developers.strava.com/docs/getting-started/) — API reference and setup
+- [FIT File Documentation](https://developer.garmin.com/fit/file-types/) — Garmin format specs

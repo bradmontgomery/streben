@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Activities - Strava Tracker{% endblock %}
+
+{% block content %}
+<div class="level">
+    <div class="level-left">
+        <h1 class="title">Activities</h1>
+    </div>
+    <div class="level-right">
+        <div class="level-item">
+            <div class="dropdown" id="sport-type-dropdown">
+                <div class="dropdown-trigger">
+                    <button class="button is-small" aria-haspopup="true" aria-controls="sport-type-menu">
+                        <span>{{ current_sport_type or "All Types" }}</span>
+                        <span class="icon is-small"><span>&#9662;</span></span>
+                    </button>
+                </div>
+                <div class="dropdown-menu" id="sport-type-menu" role="menu">
+                    <div class="dropdown-content">
+                        <a class="dropdown-item {% if not current_sport_type %}is-active{% endif %}" href="/?per_page={{ per_page }}">All Types</a>
+                        <hr class="dropdown-divider">
+                        {% for st in sport_types %}
+                        <a class="dropdown-item {% if current_sport_type == st %}is-active{% endif %}" href="/?sport_type={{ st }}&per_page={{ per_page }}">{{ st }}</a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="level-item">
+            <div class="buttons">
+                <form method="post" action="/strava/sync">
+                    <button class="button is-primary" type="submit">Sync from Strava</button>
+                </form>
+                <form method="post" action="/strava/backfill-streams">
+                    <button class="button is-info is-outlined" type="submit">Backfill Streams</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if activities %}
+<div class="table-container">
+    <table class="table is-fullwidth is-hoverable is-striped">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Name</th>
+                <th>Source</th>
+                <th>Type</th>
+                <th>Duration</th>
+                <th>Distance</th>
+                <th>Avg W</th>
+                <th>Avg HR</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in activities %}
+            <tr>
+                <td><a href="/activities/{{ a.id }}">{{ a.start_date[:10] if a.start_date else "—" }}</a></td>
+                <td>
+                    <a href="/activities/{{ a.id }}">{{ a.name or "Untitled" }}</a>
+                    {% if a.id not in has_streams %}<span class="has-text-warning" title="No stream data">&#9888;</span>{% endif %}
+                </td>
+                <td>
+                    <span class="tag {% if a.source == 'strava' %}is-warning{% else %}is-info{% endif %}">
+                        {{ a.source }}
+                    </span>
+                </td>
+                <td>{{ a.sport_type or "—" }}</td>
+                <td>{{ a.duration_display }}</td>
+                <td>{{ "%.1f mi"|format(a.distance_mi) if a.distance_mi else "—" }}</td>
+                <td>{{ "%.0f"|format(a.average_watts) if a.average_watts else "—" }}</td>
+                <td>{{ "%.0f"|format(a.average_heartrate) if a.average_heartrate else "—" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if total_pages > 1 %}
+<nav class="pagination is-centered mt-4" role="navigation" aria-label="pagination">
+    <a class="pagination-previous" {% if page > 1 %}href="/?page={{ page - 1 }}&per_page={{ per_page }}{% if current_sport_type %}&sport_type={{ current_sport_type }}{% endif %}"{% else %}disabled{% endif %}>Previous</a>
+    <a class="pagination-next" {% if page < total_pages %}href="/?page={{ page + 1 }}&per_page={{ per_page }}{% if current_sport_type %}&sport_type={{ current_sport_type }}{% endif %}"{% else %}disabled{% endif %}>Next</a>
+    <ul class="pagination-list">
+        {% if page > 2 %}
+        <li><a class="pagination-link" href="/?page=1&per_page={{ per_page }}{% if current_sport_type %}&sport_type={{ current_sport_type }}{% endif %}">1</a></li>
+        {% if page > 3 %}<li><span class="pagination-ellipsis">&hellip;</span></li>{% endif %}
+        {% endif %}
+        {% for p in range([1, page - 1]|max, [total_pages, page + 1]|min + 1) %}
+        <li><a class="pagination-link {% if p == page %}is-current{% endif %}" href="/?page={{ p }}&per_page={{ per_page }}{% if current_sport_type %}&sport_type={{ current_sport_type }}{% endif %}">{{ p }}</a></li>
+        {% endfor %}
+        {% if page < total_pages - 1 %}
+        {% if page < total_pages - 2 %}<li><span class="pagination-ellipsis">&hellip;</span></li>{% endif %}
+        <li><a class="pagination-link" href="/?page={{ total_pages }}&per_page={{ per_page }}{% if current_sport_type %}&sport_type={{ current_sport_type }}{% endif %}">{{ total_pages }}</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+<p class="has-text-grey is-size-7 has-text-centered mt-2">Showing {{ activities|length }} of {{ total }} activities</p>
+
+{% else %}
+<div class="has-text-centered py-6">
+    <p class="subtitle">No activities yet.</p>
+    <p>
+        <a href="/upload" class="button is-link">Upload a FIT file</a>
+        or
+        <a href="/settings" class="button is-outlined">Connect Strava</a>
+    </p>
+</div>
+{% endif %}
+<script>
+document.getElementById('sport-type-dropdown').addEventListener('click', function(e) {
+    e.stopPropagation();
+    this.classList.toggle('is-active');
+});
+document.addEventListener('click', function() {
+    document.getElementById('sport-type-dropdown').classList.remove('is-active');
+});
+</script>
+{% endblock %}
