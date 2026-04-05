@@ -29,7 +29,7 @@ def trends_data(range: str = "6m"):
     if offset:
         rows = db.execute(
             """SELECT start_date, moving_time, elapsed_time, distance,
-                      average_watts, max_watts, average_heartrate, max_heartrate, kilojoules
+                      average_watts, max_watts, average_heartrate, max_heartrate, kilojoules, suffer_score
                FROM activities
                WHERE start_date >= date('now', ?)
                ORDER BY start_date""",
@@ -38,7 +38,7 @@ def trends_data(range: str = "6m"):
     else:
         rows = db.execute(
             """SELECT start_date, moving_time, elapsed_time, distance,
-                      average_watts, max_watts, average_heartrate, max_heartrate, kilojoules
+                      average_watts, max_watts, average_heartrate, max_heartrate, kilojoules, suffer_score
                FROM activities
                ORDER BY start_date"""
         ).fetchall()
@@ -53,6 +53,7 @@ def trends_data(range: str = "6m"):
         "avg_hr": [],
         "max_hr": [],
         "energy": [],
+        "suffer_score": [],
     }
 
     for r in rows:
@@ -68,5 +69,6 @@ def trends_data(range: str = "6m"):
         data["avg_hr"].append(r["average_heartrate"])
         data["max_hr"].append(r["max_heartrate"])
         data["energy"].append(r["kilojoules"])
+        data["suffer_score"].append(r["suffer_score"])
 
     return JSONResponse(data)

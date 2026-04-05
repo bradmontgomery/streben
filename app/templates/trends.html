@@ -28,6 +28,7 @@
                 <button class="button is-small" data-metric="avg_hr">Avg HR</button>
                 <button class="button is-small" data-metric="max_hr">Max HR</button>
                 <button class="button is-small" data-metric="energy">Energy</button>
+                <button class="button is-small" data-metric="suffer_score">Suffer Score</button>
             </div>
         </div>
     </div>
@@ -48,7 +49,8 @@
         max_power: { name: 'Max Power', unit: 'W',   color: '#ff9f43' },
         avg_hr:    { name: 'Avg HR',    unit: 'bpm', color: '#ff3860' },
         max_hr:    { name: 'Max HR',    unit: 'bpm', color: '#cc2952' },
-        energy:    { name: 'Energy',    unit: 'kJ',  color: '#00d1b2' },
+        energy:       { name: 'Energy',       unit: 'kJ',  color: '#00d1b2' },
+        suffer_score: { name: 'Suffer Score', unit: '',    color: '#b86bff' },
     };
 
     let currentRange = '6m';
