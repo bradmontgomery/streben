@@ -106,15 +106,15 @@
 </div>
 <script>
 (function() {
-    var chartDiv = document.querySelector('.js-plotly-plot');
-    if (!chartDiv) return;
+    var chartDivs = document.querySelectorAll('.js-plotly-plot');
+    if (!chartDivs.length) return;
 
     var dark = { font: { color: '#f0f0f0' }, xaxis: { gridcolor: '#444', linecolor: '#444' }, yaxis: { gridcolor: '#444', linecolor: '#444' }, hoverlabel: { bgcolor: '#2e2e2e', bordercolor: '#444', font: { color: '#f0f0f0' } } };
     var light = { font: { color: '#2e2e2e' }, xaxis: { gridcolor: '#e0e0e0', linecolor: '#e0e0e0' }, yaxis: { gridcolor: '#e0e0e0', linecolor: '#e0e0e0' }, hoverlabel: { bgcolor: '#ffffff', bordercolor: '#e0e0e0', font: { color: '#2e2e2e' } } };
 
     function applyTheme() {
         var isDark = (localStorage.getItem('theme') || 'dark') === 'dark';
-        Plotly.relayout(chartDiv, isDark ? dark : light);
+        chartDivs.forEach(function(div) { Plotly.relayout(div, isDark ? dark : light); });
     }
 
     applyTheme();
@@ -271,6 +271,27 @@
         </div>
         {% endif %}
     </div>
+</div>
+{% endif %}
+
+{% if power_zone_html or hr_zone_html %}
+<div class="columns mt-2">
+    {% if power_zone_html %}
+    <div class="column is-half">
+        <div class="box">
+            <h2 class="title is-6">Time in Power Zones</h2>
+            {{ power_zone_html | safe }}
+        </div>
+    </div>
+    {% endif %}
+    {% if hr_zone_html %}
+    <div class="column is-half">
+        <div class="box">
+            <h2 class="title is-6">Time in Heart Rate Zones</h2>
+            {{ hr_zone_html | safe }}
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endif %}
 

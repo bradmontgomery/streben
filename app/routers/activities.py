@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.database import get_db
 from app.models import Activity
-from app.services.charts import build_streams_chart
+from app.services.charts import build_streams_chart, build_zone_chart
 from app.services.geo import decode_polyline
 
 router = APIRouter()
@@ -30,6 +30,8 @@ def activity_detail(request: Request, activity_id: int):
 
     streams = [dict(r) for r in stream_rows]
     chart_html = build_streams_chart(streams)
+    power_zone_html = build_zone_chart(streams, "watts", 100, "#3273dc", "Power (W)")
+    hr_zone_html = build_zone_chart(streams, "heartrate", 50, "#ff3860", "Heart Rate (bpm)")
     flash = request.query_params.get("flash")
 
     # Build route coordinates for map display
@@ -47,6 +49,8 @@ def activity_detail(request: Request, activity_id: int):
     return templates.TemplateResponse(request, "activity_detail.html", {
         "activity": activity,
         "chart_html": chart_html,
+        "power_zone_html": power_zone_html,
+        "hr_zone_html": hr_zone_html,
         "stream_count": len(streams),
         "route_coords": json.dumps(route_coords) if route_coords else None,
         "route_times": json.dumps(route_times) if route_times else "[]",
