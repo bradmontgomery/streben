@@ -34,17 +34,21 @@ def activity_detail(request: Request, activity_id: int):
 
     # Build route coordinates for map display
     # Prefer stream lat/lng data; fall back to decoded summary_polyline
-    route_coords = [
-        [s["lat"], s["lng"]] for s in streams
+    geo_points = [
+        (s["lat"], s["lng"], s["timestamp_offset"]) for s in streams
         if s.get("lat") is not None and s.get("lng") is not None
     ]
+    route_coords = [[lat, lng] for lat, lng, _ in geo_points]
+    route_times = [t for _, _, t in geo_points]
     if not route_coords and activity.summary_polyline:
         route_coords = decode_polyline(activity.summary_polyline)
+        route_times = []
 
     return templates.TemplateResponse(request, "activity_detail.html", {
         "activity": activity,
         "chart_html": chart_html,
         "stream_count": len(streams),
         "route_coords": json.dumps(route_coords) if route_coords else None,
+        "route_times": json.dumps(route_times) if route_times else "[]",
         "flash": flash,
     })

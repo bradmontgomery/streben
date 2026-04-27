@@ -146,6 +146,7 @@
 <script>
 (function() {
     var coords = {{ route_coords | safe }};
+    var times = {{ route_times | default('[]') | safe }};
     if (!coords.length) return;
 
     var tiles = {
@@ -180,6 +181,51 @@
             tiles[nowDark ? 'dark' : 'light'].addTo(map);
         }, 50);
     });
+
+    // Sync map highlight + zoom with chart x-axis range
+    var chartDiv = document.querySelector('.js-plotly-plot');
+    if (chartDiv && times.length === coords.length && times.length > 1) {
+        var highlight = null;
+
+        function lowerBound(arr, v) {
+            var lo = 0, hi = arr.length;
+            while (lo < hi) {
+                var mid = (lo + hi) >> 1;
+                if (arr[mid] < v) lo = mid + 1; else hi = mid;
+            }
+            return lo;
+        }
+
+        function clearHighlight() {
+            if (highlight) { map.removeLayer(highlight); highlight = null; }
+            map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+        }
+
+        function applyRange(x0, x1) {
+            if (x0 == null || x1 == null) { clearHighlight(); return; }
+            var i0 = lowerBound(times, x0);
+            var i1 = lowerBound(times, x1);
+            if (i1 <= i0) { clearHighlight(); return; }
+            var segment = coords.slice(i0, Math.min(i1 + 1, coords.length));
+            if (segment.length < 2) { clearHighlight(); return; }
+            if (highlight) map.removeLayer(highlight);
+            highlight = L.polyline(segment, { color: '#3273dc', weight: 5, opacity: 0.9 }).addTo(map);
+            map.fitBounds(highlight.getBounds(), { padding: [30, 30] });
+        }
+
+        chartDiv.on('plotly_relayout', function(ev) {
+            if (ev['xaxis.autorange'] || ev['xaxis.range'] === undefined && ev['xaxis.range[0]'] === undefined) {
+                if (ev['xaxis.autorange']) clearHighlight();
+                return;
+            }
+            var x0, x1;
+            if (ev['xaxis.range']) { x0 = ev['xaxis.range'][0]; x1 = ev['xaxis.range'][1]; }
+            else { x0 = ev['xaxis.range[0]']; x1 = ev['xaxis.range[1]']; }
+            applyRange(x0, x1);
+        });
+
+        chartDiv.on('plotly_doubleclick', clearHighlight);
+    }
 })();
 </script>
 {% endif %}
