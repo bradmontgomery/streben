@@ -109,8 +109,8 @@
     var chartDiv = document.querySelector('.js-plotly-plot');
     if (!chartDiv) return;
 
-    var dark = { font: { color: '#f0f0f0' }, xaxis: { gridcolor: '#444', linecolor: '#444' }, yaxis: { gridcolor: '#444', linecolor: '#444' } };
-    var light = { font: { color: '#2e2e2e' }, xaxis: { gridcolor: '#e0e0e0', linecolor: '#e0e0e0' }, yaxis: { gridcolor: '#e0e0e0', linecolor: '#e0e0e0' } };
+    var dark = { font: { color: '#f0f0f0' }, xaxis: { gridcolor: '#444', linecolor: '#444' }, yaxis: { gridcolor: '#444', linecolor: '#444' }, hoverlabel: { bgcolor: '#2e2e2e', bordercolor: '#444', font: { color: '#f0f0f0' } } };
+    var light = { font: { color: '#2e2e2e' }, xaxis: { gridcolor: '#e0e0e0', linecolor: '#e0e0e0' }, yaxis: { gridcolor: '#e0e0e0', linecolor: '#e0e0e0' }, hoverlabel: { bgcolor: '#ffffff', bordercolor: '#e0e0e0', font: { color: '#2e2e2e' } } };
 
     function applyTheme() {
         var isDark = (localStorage.getItem('theme') || 'dark') === 'dark';
