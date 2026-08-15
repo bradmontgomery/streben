@@ -12,16 +12,84 @@
 
 <div class="level mb-0">
     <div class="level-left">
-        <h1 class="title">{{ activity.name or "Activity" }}</h1>
+        <div id="title-display">
+            <h1 class="title is-inline-block">{{ activity.name or "Activity" }}</h1>
+            <button id="title-edit-btn" class="button is-small is-white" type="button" title="Rename">
+                <span>&#9998;</span>
+            </button>
+        </div>
+        <form id="title-edit-form" method="post" action="/activities/{{ activity.id }}/rename" class="is-hidden">
+            <div class="field has-addons">
+                <div class="control">
+                    <input class="input" type="text" name="name" value="{{ activity.name or '' }}" required>
+                </div>
+                <div class="control">
+                    <button class="button is-link" type="submit">Save</button>
+                </div>
+                <div class="control">
+                    <button id="title-edit-cancel" class="button" type="button">Cancel</button>
+                </div>
+            </div>
+        </form>
     </div>
-    {% if activity.strava_id %}
     <div class="level-right">
+        {% if activity.strava_id %}
         <a class="tag is-link is-medium" href="https://www.strava.com/activities/{{ activity.strava_id }}" target="_blank" rel="noopener">
             View on Strava &nearr;
         </a>
+        {% endif %}
+        <button id="delete-activity-btn" class="button is-danger is-small ml-2" type="button">Delete</button>
     </div>
-    {% endif %}
 </div>
+
+<div id="delete-modal" class="modal" style="z-index: 1001;">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+        <header class="modal-card-head">
+            <p class="modal-card-title">Delete Activity</p>
+            <button class="delete" aria-label="close"></button>
+        </header>
+        <section class="modal-card-body">
+            <p>Are you sure you want to delete <strong>{{ activity.name or "this activity" }}</strong>? This cannot be undone.</p>
+        </section>
+        <footer class="modal-card-foot">
+            <form method="post" action="/activities/{{ activity.id }}/delete">
+                <button class="button is-danger" type="submit">Delete</button>
+            </form>
+            <button class="button" type="button" id="delete-modal-cancel">Cancel</button>
+        </footer>
+    </div>
+</div>
+
+<script>
+(function() {
+    var titleDisplay = document.getElementById('title-display');
+    var titleForm = document.getElementById('title-edit-form');
+    document.getElementById('title-edit-btn').addEventListener('click', function() {
+        titleDisplay.classList.add('is-hidden');
+        titleForm.classList.remove('is-hidden');
+        titleForm.querySelector('input[name="name"]').focus();
+    });
+    document.getElementById('title-edit-cancel').addEventListener('click', function() {
+        titleForm.classList.add('is-hidden');
+        titleDisplay.classList.remove('is-hidden');
+    });
+
+    var modal = document.getElementById('delete-modal');
+    document.getElementById('delete-activity-btn').addEventListener('click', function() {
+        modal.classList.add('is-active');
+    });
+    modal.querySelector('.modal-background').addEventListener('click', function() {
+        modal.classList.remove('is-active');
+    });
+    modal.querySelector('.delete').addEventListener('click', function() {
+        modal.classList.remove('is-active');
+    });
+    document.getElementById('delete-modal-cancel').addEventListener('click', function() {
+        modal.classList.remove('is-active');
+    });
+})();
+</script>
 <p class="subtitle">
     {{ activity.start_date[:10] if activity.start_date else "" }}
     <span class="tag {% if activity.source == 'strava' %}is-warning{% else %}is-info{% endif %} ml-2">
