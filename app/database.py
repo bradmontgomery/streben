@@ -60,6 +60,20 @@ CREATE TABLE IF NOT EXISTS activity_streams (
 );
 
 CREATE INDEX IF NOT EXISTS idx_streams_activity ON activity_streams(activity_id);
+
+CREATE TABLE IF NOT EXISTS zone_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    power_z1 INTEGER NOT NULL DEFAULT 0,
+    power_z2 INTEGER NOT NULL DEFAULT 100,
+    power_z3 INTEGER NOT NULL DEFAULT 150,
+    power_z4 INTEGER NOT NULL DEFAULT 200,
+    power_z5 INTEGER NOT NULL DEFAULT 250,
+    hr_z1 INTEGER NOT NULL DEFAULT 0,
+    hr_z2 INTEGER NOT NULL DEFAULT 115,
+    hr_z3 INTEGER NOT NULL DEFAULT 140,
+    hr_z4 INTEGER NOT NULL DEFAULT 160,
+    hr_z5 INTEGER NOT NULL DEFAULT 175
+);
 """
 
 
@@ -90,5 +104,6 @@ def init_db():
     for col_name, sql in MIGRATIONS:
         if col_name not in existing:
             conn.execute(sql)
+    conn.execute("INSERT OR IGNORE INTO zone_settings (id) VALUES (1)")
     conn.commit()
     conn.close()

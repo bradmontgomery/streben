@@ -53,6 +53,7 @@
                 <th>Distance</th>
                 <th>Avg W</th>
                 <th>Avg HR</th>
+                <th>kJ</th>
             </tr>
         </thead>
         <tbody>
@@ -73,6 +74,7 @@
                 <td>{{ "%.1f mi"|format(a.distance_mi) if a.distance_mi else "—" }}</td>
                 <td>{{ "%.0f"|format(a.average_watts) if a.average_watts else "—" }}</td>
                 <td>{{ "%.0f"|format(a.average_heartrate) if a.average_heartrate else "—" }}</td>
+                <td>{{ "%.0f"|format(a.kilojoules) if a.kilojoules else "—" }}</td>
             </tr>
             {% endfor %}
         </tbody>

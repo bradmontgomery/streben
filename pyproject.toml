@@ -1,6 +1,6 @@
 [project]
 name = "strava-api-thing"
-version = "0.2.0"
+version = "0.3.0"
 description = "Local web app for syncing, storing, and visualizing cycling activity data from Strava and Garmin FIT files"
 requires-python = ">=3.11"
 authors = [

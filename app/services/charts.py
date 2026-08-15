@@ -57,11 +57,15 @@ def build_streams_chart(streams: list[dict]) -> str | None:
     return pio.to_html(fig, full_html=False, include_plotlyjs="cdn")
 
 
-def _time_in_buckets(streams: list[dict], key: str, bucket_size: int) -> dict[int, int]:
-    """Sum sample durations into buckets keyed by bucket lower bound.
+ZONE_COLORS = ["#3298dc", "#48c78e", "#ffe08a", "#ffa94d", "#f14668"]
+
+
+def _time_in_zones(streams: list[dict], key: str, bounds: list[int]) -> list[int]:
+    """Sum sample durations into 5 zones defined by lower bounds.
 
     Sample duration is derived from the gap to the next sample's
     timestamp_offset; the final sample uses the median gap as a fallback.
+    Returns a 5-element list of total seconds, index 0 = Z1 ... index 4 = Z5.
     """
     samples = [
         (s["timestamp_offset"], s[key])
@@ -69,19 +73,22 @@ def _time_in_buckets(streams: list[dict], key: str, bucket_size: int) -> dict[in
         if s.get(key) is not None and s.get("timestamp_offset") is not None
     ]
     if len(samples) < 2:
-        return {}
+        return [0, 0, 0, 0, 0]
 
     gaps = [samples[i + 1][0] - samples[i][0] for i in range(len(samples) - 1)]
     fallback = sorted(gaps)[len(gaps) // 2] if gaps else 1
     durations = gaps + [fallback]
 
-    buckets: dict[int, int] = {}
+    totals = [0, 0, 0, 0, 0]
     for (_, value), dur in zip(samples, durations):
         if dur <= 0:
             continue
-        bucket = int(value // bucket_size) * bucket_size
-        buckets[bucket] = buckets.get(bucket, 0) + dur
-    return buckets
+        zone_idx = 0
+        for i, lo in enumerate(bounds):
+            if value >= lo:
+                zone_idx = i
+        totals[zone_idx] += dur
+    return totals
 
 
 def _format_duration(seconds: int) -> str:
@@ -95,31 +102,32 @@ def _format_duration(seconds: int) -> str:
 def build_zone_chart(
     streams: list[dict],
     key: str,
-    bucket_size: int,
-    color: str,
+    bounds: list[int],
     unit: str,
 ) -> str | None:
-    """Build a bar chart of cumulative time spent in each value bucket."""
-    buckets = _time_in_buckets(streams, key, bucket_size)
-    if not buckets:
+    """Build a bar chart of cumulative time spent in each of 5 zones."""
+    totals = _time_in_zones(streams, key, bounds)
+    if not any(totals):
         return None
 
-    lower_bounds = sorted(buckets.keys())
-    labels = [f"{lo}-{lo + bucket_size - 1}" for lo in lower_bounds]
-    minutes = [buckets[lo] / 60 for lo in lower_bounds]
-    hover = [_format_duration(buckets[lo]) for lo in lower_bounds]
+    labels = []
+    for i, lo in enumerate(bounds):
+        hi = bounds[i + 1] - 1 if i + 1 < len(bounds) else None
+        labels.append(f"Z{i + 1} ({lo}-{hi})" if hi is not None else f"Z{i + 1} ({lo}+)")
+    minutes = [t / 60 for t in totals]
+    hover = [_format_duration(t) for t in totals]
 
     fig = go.Figure(
         go.Bar(
             x=labels,
             y=minutes,
-            marker_color=color,
+            marker_color=ZONE_COLORS,
             customdata=hover,
             hovertemplate="%{x} " + unit + ": %{customdata}<extra></extra>",
         )
     )
     fig.update_layout(
-        xaxis_title=unit,
+        xaxis_title="Zone",
         yaxis_title="Time (minutes)",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",

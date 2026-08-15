@@ -41,6 +41,7 @@
 </div>
 
 <div class="box">
+    <div class="level mb-4" id="trend-stats"></div>
     <div id="chart" style="width: 100%; height: 450px;"></div>
 </div>
 
@@ -49,15 +50,15 @@
 (() => {
     const chart = echarts.init(document.getElementById('chart'), null, { renderer: 'canvas' });
     const metricConfig = {
-        duration:  { name: 'Duration',  unit: 'min', color: '#3273dc' },
-        distance:  { name: 'Distance',  unit: 'mi',  color: '#23d160' },
-        elevation: { name: 'Elevation', unit: 'ft',  color: '#8B4513' },
-        avg_power: { name: 'Avg Power', unit: 'W',   color: '#ffdd57' },
-        max_power: { name: 'Max Power', unit: 'W',   color: '#ff9f43' },
-        avg_hr:    { name: 'Avg HR',    unit: 'bpm', color: '#ff3860' },
-        max_hr:    { name: 'Max HR',    unit: 'bpm', color: '#cc2952' },
-        energy:       { name: 'Energy',       unit: 'kJ',  color: '#00d1b2' },
-        suffer_score: { name: 'Suffer Score', unit: '',    color: '#b86bff' },
+        duration:  { name: 'Duration',  unit: 'min', color: '#3273dc', summable: true,  decimals: 1 },
+        distance:  { name: 'Distance',  unit: 'mi',  color: '#23d160', summable: true,  decimals: 1 },
+        elevation: { name: 'Elevation', unit: 'ft',  color: '#8B4513', summable: true,  decimals: 0 },
+        avg_power: { name: 'Avg Power', unit: 'W',   color: '#ffdd57', summable: false, decimals: 0 },
+        max_power: { name: 'Max Power', unit: 'W',   color: '#ff9f43', summable: false, decimals: 0 },
+        avg_hr:    { name: 'Avg HR',    unit: 'bpm', color: '#ff3860', summable: false, decimals: 0 },
+        max_hr:    { name: 'Max HR',    unit: 'bpm', color: '#cc2952', summable: false, decimals: 0 },
+        energy:       { name: 'Energy',       unit: 'kJ',  color: '#00d1b2', summable: true, decimals: 0 },
+        suffer_score: { name: 'Suffer Score', unit: '',    color: '#b86bff', summable: true, decimals: 0 },
     };
 
     let currentRange = '6m';
@@ -79,6 +80,56 @@
         const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
         const intercept = (sy - slope * sx) / n;
         return values.map((_, i) => Math.round((slope * i + intercept) * 100) / 100);
+    }
+
+    function computeStats(values) {
+        const v = values.filter(x => x != null && Number.isFinite(x));
+        const n = v.length;
+        if (n === 0) return null;
+        let sum = 0, min = v[0], max = v[0];
+        for (const x of v) {
+            sum += x;
+            if (x < min) min = x;
+            if (x > max) max = x;
+        }
+        const mean = sum / n;
+        let stdDev = null;
+        if (n > 1) {
+            const variance = v.reduce((s, x) => s + (x - mean) ** 2, 0) / (n - 1);
+            stdDev = Math.sqrt(variance);
+        }
+        return { n, sum, min, max, mean, stdDev };
+    }
+
+    function renderStats() {
+        const el = document.getElementById('trend-stats');
+        const cfg = metricConfig[currentMetric];
+        const stats = chartData ? computeStats(chartData[currentMetric]) : null;
+        const fmt = (x, d = cfg.decimals) => x == null ? '—' : Number(x.toFixed(d)).toLocaleString() + (cfg.unit ? ' ' + cfg.unit : '');
+        const tiles = [
+            { label: 'Count', value: stats ? stats.n.toLocaleString() : '—' },
+        ];
+        if (cfg.summable) {
+            tiles.push({ label: 'Sum', value: stats ? fmt(stats.sum) : '—' });
+        }
+        tiles.push(
+            { label: 'Mean', value: stats ? fmt(stats.mean) : '—' },
+            { label: 'Min', value: stats ? fmt(stats.min) : '—' },
+            { label: 'Max', value: stats ? fmt(stats.max) : '—' },
+            { label: 'StdDev', value: (stats && stats.stdDev != null) ? fmt(stats.stdDev, Math.max(cfg.decimals, 1)) : '—' },
+        );
+        el.innerHTML = tiles.map(t => `
+            <div class="level-item has-text-centered">
+                <div>
+                    <p class="heading">${t.label}</p>
+                    <p class="title is-4">${t.value}</p>
+                </div>
+            </div>`).join('');
+    }
+
+    function render() {
+        chart.setOption(buildOption(), true);
+        renderStats();
     }
 
     function buildOption() {
@@ -143,7 +194,7 @@
     async function fetchData() {
         const resp = await fetch('/api/trends?range=' + currentRange);
         chartData = await resp.json();
-        chart.setOption(buildOption(), true);
+        render();
     }
 
     // Range buttons
@@ -163,20 +214,20 @@
         document.querySelectorAll('#metric-buttons .button').forEach(b => b.classList.remove('is-info', 'is-selected'));
         btn.classList.add('is-info', 'is-selected');
         currentMetric = btn.dataset.metric;
-        chart.setOption(buildOption(), true);
+        render();
     });
 
     // Trend line toggle
     document.getElementById('trend-toggle').addEventListener('change', e => {
         showTrend = e.target.checked;
-        chart.setOption(buildOption(), true);
+        render();
     });
 
     // Resize
     window.addEventListener('resize', () => chart.resize());
 
     // React to theme changes
-    const observer = new MutationObserver(() => chart.setOption(buildOption(), true));
+    const observer = new MutationObserver(() => render());
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
     fetchData();
