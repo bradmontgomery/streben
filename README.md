@@ -1,4 +1,4 @@
-# Strava API Thing
+# Streber
 
 A locally-running web application for syncing, storing, and visualizing cycling activity data from Strava and Garmin FIT files.
 
@@ -14,6 +14,7 @@ A locally-running web application for syncing, storing, and visualizing cycling 
 ## Quick Start
 
 ### Prerequisites
+
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) (fast Python package manager)
 

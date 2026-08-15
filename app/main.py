@@ -2,9 +2,9 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.database import init_db
-from app.routers import dashboard, activities, strava, fit_upload, trends
+from app.routers import activities, dashboard, fit_upload, strava, trends
 
-app = FastAPI(title="Strava Activity Tracker")
+app = FastAPI(title="Streber")
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 

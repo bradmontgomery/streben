@@ -2400,7 +2400,7 @@ wheels = [
 ]
 
 [[package]]
-name = "strava-api-thing"
+name = "streber"
 version = "0.3.0"
 source = { editable = "." }
 dependencies = [

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Strava Activity Tracker is a locally-running web application for syncing, storing, and visualizing cycling activity data. It ingests data from two sources — the Strava API and Garmin FIT files — stores everything in a local SQLite database, and presents it through a server-rendered web UI.
+Streber is a locally-running web application for syncing, storing, and visualizing cycling activity data. It ingests data from two sources — the Strava API and Garmin FIT files — stores everything in a local SQLite database, and presents it through a server-rendered web UI.
 
 The application is built with **FastAPI** and **Jinja2** templates, styled with **Bulma CSS** (via CDN), and uses **Plotly** and **Apache ECharts** for data visualization. There is no JavaScript frontend framework; all pages are server-rendered with minimal inline JS for interactivity.
 
@@ -24,7 +24,7 @@ The application is built with **FastAPI** and **Jinja2** templates, styled with 
 ## Project Structure
 
 ```
-strava-api-thing/
+streber/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI app setup, router registration, startup
