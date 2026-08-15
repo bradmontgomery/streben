@@ -108,11 +108,16 @@
         const fmt = (x, d = cfg.decimals) => x == null ? '—' : Number(x.toFixed(d)).toLocaleString() + (cfg.unit ? ' ' + cfg.unit : '');
         const tiles = [
             { label: 'Count', value: stats ? stats.n.toLocaleString() : '—' },
-            { label: cfg.summable ? 'Sum' : 'Mean', value: stats ? fmt(cfg.summable ? stats.sum : stats.mean) : '—' },
+        ];
+        if (cfg.summable) {
+            tiles.push({ label: 'Sum', value: stats ? fmt(stats.sum) : '—' });
+        }
+        tiles.push(
+            { label: 'Mean', value: stats ? fmt(stats.mean) : '—' },
             { label: 'Min', value: stats ? fmt(stats.min) : '—' },
             { label: 'Max', value: stats ? fmt(stats.max) : '—' },
             { label: 'StdDev', value: (stats && stats.stdDev != null) ? fmt(stats.stdDev, Math.max(cfg.decimals, 1)) : '—' },
-        ];
+        );
         el.innerHTML = tiles.map(t => `
             <div class="level-item has-text-centered">
                 <div>
