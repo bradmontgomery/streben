@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.database import get_db
 from app.services import strava_client
+from app.services import zones as zone_service
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -15,9 +16,11 @@ templates = Jinja2Templates(directory="app/templates")
 @router.get("/settings")
 def settings_page(request: Request):
     auth = strava_client.get_auth()
+    zone_settings = zone_service.get_zone_settings()
     flash = request.query_params.get("flash")
     return templates.TemplateResponse(request, "settings.html", {
         "auth": auth,
+        "zone_settings": zone_settings,
         "flash": flash,
     })
 
@@ -33,6 +36,24 @@ async def save_settings(request: Request):
 
     strava_client.save_auth(client_id, client_secret)
     return RedirectResponse("/settings?flash=Settings+saved", status_code=303)
+
+
+@router.post("/settings/zones")
+async def save_zone_settings_route(request: Request):
+    form = await request.form()
+    try:
+        power_bounds = [int(form.get(f"power_z{i}", "")) for i in range(1, 6)]
+        hr_bounds = [int(form.get(f"hr_z{i}", "")) for i in range(1, 6)]
+    except ValueError:
+        return RedirectResponse("/settings?flash=Zone+values+must+be+whole+numbers", status_code=303)
+
+    if power_bounds != sorted(power_bounds) or len(set(power_bounds)) != 5:
+        return RedirectResponse("/settings?flash=Power+zones+must+strictly+increase", status_code=303)
+    if hr_bounds != sorted(hr_bounds) or len(set(hr_bounds)) != 5:
+        return RedirectResponse("/settings?flash=Heart+rate+zones+must+strictly+increase", status_code=303)
+
+    zone_service.save_zone_settings(power_bounds, hr_bounds)
+    return RedirectResponse("/settings?flash=Zone+settings+saved", status_code=303)
 
 
 @router.get("/strava/connect")
