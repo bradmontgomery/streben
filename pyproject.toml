@@ -1,5 +1,5 @@
 [project]
-name = "streber"
+name = "streben"
 version = "0.3.1"
 description = "Local web app for syncing, storing, and visualizing cycling activity data from Strava and Garmin FIT files"
 requires-python = ">=3.11"

@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from app.database import init_db
 from app.routers import activities, dashboard, fit_upload, strava, trends
 
-app = FastAPI(title="Streber")
+app = FastAPI(title="Streben")
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 

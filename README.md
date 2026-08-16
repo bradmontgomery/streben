@@ -1,4 +1,4 @@
-# Streber
+# Streben
 
 A locally-running web application for syncing, storing, and visualizing cycling activity data from Strava and Garmin FIT files.
 

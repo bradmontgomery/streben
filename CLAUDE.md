@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Steber** is a locally-running web application for syncing, storing, and visualizing cycling activity data. It ingests data from two sources — the Strava API and Garmin FIT file uploads — stores everything in a local SQLite database, and presents it through a server-rendered web UI.
+**Streben** is a locally-running web application for syncing, storing, and visualizing cycling activity data. It ingests data from two sources — the Strava API and Garmin FIT file uploads — stores everything in a local SQLite database, and presents it through a server-rendered web UI.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for full technical details including database schema, data flows, and route definitions.
 
