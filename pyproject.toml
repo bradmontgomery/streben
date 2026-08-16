@@ -1,6 +1,6 @@
 [project]
 name = "streben"
-version = "0.3.1"
+version = "0.3.2"
 description = "Local web app for syncing, storing, and visualizing cycling activity data from Strava and Garmin FIT files"
 requires-python = ">=3.11"
 authors = [
