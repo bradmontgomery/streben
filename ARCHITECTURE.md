@@ -116,6 +116,50 @@ Per-second time-series data for activities. Indexed on `activity_id`.
 | lat              | REAL    | Degrees                  |
 | lng              | REAL    | Degrees                  |
 
+
+### `nutrition`
+One row per calendar day, imported from a Cronometer `dailysummary.csv`. `date` is the PK, so
+re-importing a date overwrites it.
+
+| Column      | Type    | Notes                                          |
+|-------------|---------|------------------------------------------------|
+| date        | TEXT    | PK, `YYYY-MM-DD` (local day)                   |
+| energy_kcal | REAL    | NULL when the day was never logged             |
+| carbs_g     | REAL    |                                                |
+| fat_g       | REAL    |                                                |
+| protein_g   | REAL    |                                                |
+| fiber_g     | REAL    |                                                |
+| sugars_g    | REAL    |                                                |
+| sodium_mg   | REAL    |                                                |
+| completed   | INTEGER | Cronometer's "day complete" flag; display only |
+| raw_data    | TEXT    | JSON of all 61 export columns                  |
+| imported_at | TEXT    | UTC ISO timestamp of the last import           |
+
+**Blank is not zero.** An unlogged day arrives with every nutrient cell empty and is stored as
+`NULL` throughout. A day is considered logged when `energy_kcal IS NOT NULL` — never via
+`completed`, which is almost never ticked.
+
+### `body_metrics`
+Date-stamped weight entries. Energy balance for a given day uses the most recent entry on or before
+that day, so historical numbers stay correct as weight changes.
+
+| Column    | Type | Notes                        |
+|-----------|------|------------------------------|
+| date      | TEXT | PK, `YYYY-MM-DD`             |
+| weight_lb | REAL | Not null                     |
+| source    | TEXT | `manual` or `cronometer`     |
+
+### `nutrition_settings`
+Singleton row (`CHECK (id = 1)`), same pattern as `zone_settings`.
+
+| Column              | Type | Default | Notes                                            |
+|---------------------|------|---------|--------------------------------------------------|
+| height_in           | REAL | NULL    | Mifflin–St Jeor input                            |
+| birth_date          | TEXT | NULL    | Age is computed per day, not "today"             |
+| sex                 | TEXT | male    |                                                  |
+| activity_multiplier | REAL | 1.2     | Keep sedentary — rides are counted separately    |
+| carb_rate_g_per_hr  | REAL | 45      | On-bike fuelling estimate                        |
+
 ## Data Flow
 
 ### Strava Sync
@@ -161,6 +205,25 @@ For activities synced before stream fetching was implemented:
 - **Web UI**: "Backfill Streams" button on dashboard, or per-activity "Fetch Streams" button on detail page
 - **CLI**: `uv run strava-cli backfill-streams [--limit N]` — preferred for large backfills, shows progress and respects rate limits
 
+
+### Nutrition Import & Energy Balance
+1. `POST /nutrition/upload` (or `strava-cli import-cronometer`) reads the CSV bytes
+2. `services/cronometer.py` parses with stdlib `csv` — blanks become `None`, all 61 columns are
+   kept as `raw_data` JSON. pandas is deliberately avoided: it coerces blanks to NaN
+3. `services/nutrition.py` upserts one row per date, enumerating every column in the
+   `DO UPDATE SET` so a cleared day comes back empty instead of retaining stale values
+4. `services/energy.py::energy_balance(start, end)` builds a dense per-day spine and joins:
+   - **nutrition** by date
+   - **rides**, grouped by *local* day via
+     `substr(COALESCE(json_extract(raw_data,'$.start_date_local'), start_date), 1, 10)`.
+     `start_date` alone is UTC and misattributes 110 of 2190 activities
+   - **weight**, by forward-walking the sorted `body_metrics` rows alongside the spine (O(n+m),
+     no per-day query)
+5. Per day: `need = rmr × activity_multiplier + ride_kj`, `intake = logged + on-bike estimate`,
+   `balance = intake − need`. Ride kJ converts to kcal 1:1 (~24% gross efficiency cancels the
+   4.184 kJ/kcal factor). The cumulative balance sums logged days only and carries forward across
+   gaps so the trend line stays continuous
+
 ## Routes
 
 | Method | Path                              | Description                        |
@@ -178,6 +241,14 @@ For activities synced before stream fetching was implemented:
 | POST   | `/strava/fetch-streams/{id}`      | Fetch streams for one activity     |
 | GET    | `/trends`                         | Trends page                        |
 | GET    | `/api/trends?range=6m`            | Trends JSON data                   |
+| GET    | `/nutrition`                      | Nutrition & energy balance table   |
+| GET    | `/nutrition/upload`               | Cronometer CSV upload form         |
+| POST   | `/nutrition/upload`               | Import a Cronometer daily summary  |
+| GET    | `/api/nutrition-trends?range=6m`  | Dense per-day energy balance JSON  |
+| POST   | `/settings/nutrition`             | Save body metrics & carb rate      |
+| POST   | `/settings/weight`                | Add/update a dated weight entry    |
+| POST   | `/settings/weight/delete`         | Delete a weight entry              |
+| POST   | `/settings/biometrics`            | Import weights from Cronometer CSV |
 
 ## Pages
 
@@ -190,11 +261,29 @@ Summary stats bar (duration, distance, power, HR, energy), interactive Plotly ch
 ### Trends (`/trends`)
 Time-series chart using Apache ECharts. Toggle between metrics (duration, distance, avg/max power, avg/max HR, energy, suffer score) and time ranges (1W, 1M, 3M, 6M, 1Y, All). Optional linear regression trend line overlay. Data fetched via `/api/trends` JSON endpoint.
 
+Two additional metrics — **Energy Balance** and **Weight** — are served from
+`/api/nutrition-trends` instead, because nutrition has a one-row-per-calendar-day grain while
+`/api/trends` is one row per activity (duplicate dates, missing days). Both endpoints are
+fetched together on a range change so switching metrics never needs a round trip. Energy Balance
+renders stacked intake bars (logged plus a hatched on-bike estimate) against stacked expenditure
+bars (baseline plus ride), with a cumulative balance line on a second axis and unlogged days
+shaded.
+
+### Nutrition (`/nutrition`)
+One row per calendar day over the selected range: intake, estimated on-bike calories, ride kJ,
+baseline TDEE, total need, and the resulting balance, plus weight and macros. Days with no food log
+are greyed and tagged "not logged" — visually distinct from a zero-calorie day — while still showing
+any ride that happened. Summary tiles show logged days, total and mean balance, and the implied
+weight change at 3500 kcal/lb.
+
 ### Upload (`/upload`)
 File input for .fit files. Parses and stores the activity + streams on upload, then redirects to the activity detail page.
 
 ### Settings (`/settings`)
-Strava API credential management (client ID/secret), connection status with human-readable token expiry, and OAuth connect/reconnect button.
+Strava API credential management (client ID/secret), connection status with human-readable token
+expiry, and OAuth connect/reconnect button. Also holds heart-rate/power zones, body metrics
+(height, birth date, sex, activity multiplier, on-bike carb rate) with a live RMR/TDEE preview,
+and the dated weight log.
 
 ## UI
 
@@ -213,6 +302,16 @@ uv run strava-cli backfill-streams [--limit N]
 
 Fetches missing stream data from Strava with per-activity progress output, 1-second delay between API calls to respect rate limits (100 requests / 15 minutes).
 
+```
+uv run strava-cli import-cronometer path/to/dailysummary.csv
+uv run strava-cli import-biometrics path/to/biometrics.csv
+uv run strava-cli backfill-nutrition-fields
+```
+
+`import-cronometer` upserts one row per date — re-importing overwrites. `backfill-nutrition-fields`
+re-promotes the curated columns from stored `raw_data`, so new columns can be added without a
+re-upload (mirrors `backfill-fields` for activities).
+
 ## Running
 
 ```bash
@@ -224,6 +323,9 @@ uv run uvicorn app.main:app --port 8000
 
 # Backfill stream data (CLI)
 uv run strava-cli backfill-streams --limit 50
+
+# Import nutrition data
+uv run strava-cli import-cronometer ~/Downloads/dailysummary.csv
 ```
 
 The database is auto-created at `data/strava.db` on first startup.

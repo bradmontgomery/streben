@@ -30,6 +30,8 @@
                 <button class="button is-small" data-metric="max_hr">Max HR</button>
                 <button class="button is-small" data-metric="energy">Energy</button>
                 <button class="button is-small" data-metric="suffer_score">Suffer Score</button>
+                <button class="button is-small" data-metric="energy_balance">Energy Balance</button>
+                <button class="button is-small" data-metric="weight">Weight</button>
             </div>
         </div>
         <div class="level-item ml-4">
@@ -59,12 +61,18 @@
         max_hr:    { name: 'Max HR',    unit: 'bpm', color: '#cc2952', summable: false, decimals: 0 },
         energy:       { name: 'Energy',       unit: 'kJ',  color: '#00d1b2', summable: true, decimals: 0 },
         suffer_score: { name: 'Suffer Score', unit: '',    color: '#b86bff', summable: true, decimals: 0 },
+        // kind: 'nutrition' metrics come from /api/nutrition-trends, which has a
+        // dense one-row-per-calendar-day grain instead of one row per activity.
+        energy_balance: { name: 'Energy Balance', unit: 'kcal', color: '#23d160', kind: 'nutrition' },
+        weight:         { name: 'Weight', unit: 'lb', color: '#ff9f43', kind: 'nutrition',
+                          summable: false, decimals: 1 },
     };
 
     let currentRange = '6m';
     let currentMetric = 'duration';
     let showTrend = false;
     let chartData = null;
+    let nutritionData = null;
 
     function linearRegression(values) {
         const pts = [];
@@ -128,8 +136,13 @@
     }
 
     function render() {
-        chart.setOption(buildOption(), true);
-        renderStats();
+        const cfg = metricConfig[currentMetric];
+        const isNutrition = cfg.kind === 'nutrition';
+        // A linear regression across stacked balance bars is meaningless.
+        document.getElementById('trend-toggle').closest('.level-item').style.display =
+            isNutrition ? 'none' : '';
+        chart.setOption(isNutrition ? buildNutritionOption() : buildOption(), true);
+        isNutrition ? renderNutritionStats() : renderStats();
     }
 
     function buildOption() {
@@ -191,9 +204,142 @@
         };
     }
 
+    function buildNutritionOption() {
+        const n = nutritionData;
+        if (!n || !n.dates || !n.dates.length) return {};
+        const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+        const axis = isDark ? '#ccc' : '#666';
+        const split = { lineStyle: { color: isDark ? '#444' : '#e0e0e0' } };
+
+        if (currentMetric === 'weight') {
+            return {
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: n.dates, axisLabel: { color: axis } },
+                yAxis: { type: 'value', name: 'Weight (lb)', scale: true,
+                         nameTextStyle: { color: axis }, axisLabel: { color: axis }, splitLine: split },
+                series: [{ name: 'Weight', type: 'line', data: n.weight_lb, smooth: true,
+                           connectNulls: true, showSymbol: n.dates.length < 60,
+                           lineStyle: { color: '#ff9f43', width: 2 }, itemStyle: { color: '#ff9f43' } }],
+                backgroundColor: 'transparent',
+                grid: { left: 60, right: 20, top: 40, bottom: 40 },
+            };
+        }
+
+        // Shade the days with no food log so a gap reads as "no data" rather
+        // than "ate nothing".
+        const gaps = [];
+        for (let i = 0; i < n.dates.length; i++) {
+            if (!n.is_logged[i]) gaps.push([{ xAxis: n.dates[i] }, { xAxis: n.dates[i] }]);
+        }
+
+        return {
+            tooltip: {
+                trigger: 'axis',
+                formatter: params => {
+                    const i = params[0].dataIndex;
+                    let out = params[0].name;
+                    if (!n.is_logged[i]) out += ' <em>(not logged)</em>';
+                    for (const p of params) {
+                        if (p.value == null) continue;
+                        // Never Math.abs() here: the cumulative balance is
+                        // signed, and stripping the sign turns a deficit into
+                        // an apparent surplus.
+                        const v = Math.round(p.value);
+                        const signed = p.seriesName === 'Cumulative Balance';
+                        let line = p.seriesName + ': '
+                            + (signed && v > 0 ? '+' : '') + v.toLocaleString() + ' kcal';
+                        if (p.seriesName === 'On-Bike (est.)') {
+                            line += ' &mdash; estimated from ride time';
+                        }
+                        if (signed) {
+                            line += v < 0 ? ' (deficit)' : ' (surplus)';
+                        }
+                        out += '<br>' + p.marker + line;
+                    }
+                    return out;
+                },
+            },
+            legend: { top: 0, textStyle: { color: axis } },
+            xAxis: { type: 'category', data: n.dates, axisLabel: { color: axis } },
+            yAxis: [
+                { type: 'value', name: 'kcal/day', nameTextStyle: { color: axis },
+                  axisLabel: { color: axis }, splitLine: split },
+                { type: 'value', name: 'Cumulative', position: 'right',
+                  nameTextStyle: { color: axis }, axisLabel: { color: axis },
+                  splitLine: { show: false } },
+            ],
+            series: [
+                { name: 'Logged Intake', type: 'bar', stack: 'in', data: n.intake_logged,
+                  itemStyle: { color: '#23d160' },
+                  markArea: gaps.length ? {
+                      silent: true,
+                      itemStyle: { color: isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.04)' },
+                      data: gaps,
+                  } : undefined },
+                // Three redundant cues -- opacity, dashed border, hatch -- so this
+                // never reads as logged data.
+                { name: 'On-Bike (est.)', type: 'bar', stack: 'in', data: n.intake_onbike_est,
+                  itemStyle: { color: '#23d160', opacity: 0.45,
+                               borderColor: '#23d160', borderWidth: 1, borderType: 'dashed',
+                               decal: { symbol: 'rect', dashArrayX: [1, 0], dashArrayY: [2, 5],
+                                        rotation: -Math.PI / 4, color: 'rgba(255,255,255,.35)' } } },
+                { name: 'Baseline', type: 'bar', stack: 'out', data: n.baseline_tdee,
+                  itemStyle: { color: '#ff3860' } },
+                { name: 'Ride Expenditure', type: 'bar', stack: 'out', data: n.ride_kcal,
+                  itemStyle: { color: '#ff9f43' } },
+                { name: 'Cumulative Balance', type: 'line', yAxisIndex: 1,
+                  data: n.cumulative_balance, showSymbol: false,
+                  lineStyle: { color: '#b86bff', width: 3 }, itemStyle: { color: '#b86bff' } },
+            ],
+            backgroundColor: 'transparent',
+            grid: { left: 60, right: 60, top: 40, bottom: 40 },
+        };
+    }
+
+    function renderNutritionStats() {
+        const el = document.getElementById('trend-stats');
+        const n = nutritionData;
+        if (!n || !n.summary) { el.innerHTML = ''; return; }
+        const num = x => x == null ? '\u2014' : Math.round(x).toLocaleString();
+        let tiles;
+        if (currentMetric === 'weight') {
+            const w = (n.weight_lb || []).filter(x => x != null);
+            const delta = w.length > 1 ? w[w.length - 1] - w[0] : null;
+            tiles = [
+                { label: 'Latest', value: w.length ? w[w.length - 1].toFixed(1) + ' lb' : '\u2014' },
+                { label: 'Change', value: delta == null ? '\u2014' : (delta > 0 ? '+' : '') + delta.toFixed(1) + ' lb' },
+                { label: 'Entries', value: w.length },
+            ];
+        } else {
+            const s = n.summary;
+            const sign = x => x == null ? '\u2014' : (x > 0 ? '+' : '') + num(x);
+            tiles = [
+                { label: 'Logged Days', value: s.logged_days },
+                { label: 'Total Balance', value: sign(s.total_balance) + ' kcal' },
+                { label: 'Mean / Day', value: sign(s.mean_balance) + ' kcal' },
+                { label: 'Est. Weight Change',
+                  value: s.total_balance == null ? '\u2014'
+                         : (s.total_balance / 3500).toFixed(1) + ' lb' },
+            ];
+        }
+        el.innerHTML = tiles.map(t => `
+            <div class="level-item has-text-centered">
+                <div>
+                    <p class="heading">${t.label}</p>
+                    <p class="title is-4">${t.value}</p>
+                </div>
+            </div>`).join('');
+    }
+
     async function fetchData() {
-        const resp = await fetch('/api/trends?range=' + currentRange);
-        chartData = await resp.json();
+        // Both endpoints are fetched together because a metric switch only
+        // re-renders -- it must never need a network round trip.
+        const [a, n] = await Promise.all([
+            fetch('/api/trends?range=' + currentRange).then(r => r.json()),
+            fetch('/api/nutrition-trends?range=' + currentRange).then(r => r.json()),
+        ]);
+        chartData = a;
+        nutritionData = n;
         render();
     }
 

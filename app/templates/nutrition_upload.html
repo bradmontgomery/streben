@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Import Cronometer CSV - Streben{% endblock %}
+
+{% block content %}
+<h1 class="title">Import Cronometer CSV</h1>
+<p class="subtitle">Upload a <code>dailysummary.csv</code> exported from Cronometer</p>
+
+<div class="box">
+    <form method="post" action="/nutrition/upload" enctype="multipart/form-data">
+        <div class="field">
+            <div class="file has-name is-fullwidth is-boxed is-primary">
+                <label class="file-label">
+                    <input class="file-input" type="file" name="file" accept=".csv" id="csvFile">
+                    <span class="file-cta">
+                        <span class="file-label">Choose a .csv file&hellip;</span>
+                    </span>
+                    <span class="file-name" id="fileName">No file selected</span>
+                </label>
+            </div>
+        </div>
+        <div class="field">
+            <button class="button is-primary is-medium" type="submit">Upload &amp; Import</button>
+        </div>
+    </form>
+</div>
+
+<div class="content is-small has-text-grey">
+    <p><strong>Re-uploading overwrites by date.</strong> Any day already stored is replaced by the
+    version in the new file, so you can re-export after filling gaps.</p>
+    <p>Days left blank in Cronometer are stored as <em>not logged</em> &mdash; they are not treated
+    as zero-calorie days.</p>
+    <p>In Cronometer: <em>Settings &rarr; Account &rarr; Export Data &rarr; Daily Nutrition Summary</em>.</p>
+</div>
+
+<script>
+document.getElementById('csvFile').addEventListener('change', function() {
+    document.getElementById('fileName').textContent =
+        this.files.length ? this.files[0].name : 'No file selected';
+});
+</script>
+{% endblock %}

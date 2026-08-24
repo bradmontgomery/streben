@@ -106,4 +106,134 @@
         </div>
     </form>
 </div>
+
+<div class="box">
+    <h2 class="title is-5">Body Metrics</h2>
+    <p class="help mb-3">
+        Used to calculate resting metabolic rate (Mifflin&ndash;St Jeor) and your daily
+        energy balance on the <a href="/nutrition">Nutrition</a> page.
+    </p>
+    <form method="post" action="/settings/nutrition">
+        <div class="columns">
+            <div class="column">
+                <div class="field">
+                    <label class="label">Height (inches)</label>
+                    <div class="control">
+                        <input class="input" type="number" step="0.1" name="height_in"
+                               value="{{ nutrition_settings.height_in if nutrition_settings and nutrition_settings.height_in else '' }}" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Birth date</label>
+                    <div class="control">
+                        <input class="input" type="date" name="birth_date"
+                               value="{{ nutrition_settings.birth_date if nutrition_settings and nutrition_settings.birth_date else '' }}" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Sex</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select name="sex">
+                                <option value="male" {% if nutrition_settings and nutrition_settings.sex == 'male' %}selected{% endif %}>Male</option>
+                                <option value="female" {% if nutrition_settings and nutrition_settings.sex == 'female' %}selected{% endif %}>Female</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="column">
+                <div class="field">
+                    <label class="label">Activity multiplier</label>
+                    <div class="control">
+                        <input class="input" type="number" step="0.05" name="activity_multiplier"
+                               value="{{ nutrition_settings.activity_multiplier if nutrition_settings else 1.2 }}" required>
+                    </div>
+                    <p class="help">
+                        Keep this at <strong>1.2 (sedentary)</strong>. Ride energy is added separately
+                        from your power data &mdash; raising this to &ldquo;moderately active&rdquo;
+                        would count your rides twice.
+                    </p>
+                </div>
+                <div class="field">
+                    <label class="label">On-bike carb rate (g/hr)</label>
+                    <div class="control">
+                        <input class="input" type="number" step="1" name="carb_rate_g_per_hr"
+                               value="{{ nutrition_settings.carb_rate_g_per_hr if nutrition_settings else 45 }}" required>
+                    </div>
+                    <p class="help">
+                        Food eaten during rides is rarely logged, so it is estimated as
+                        ride hours &times; this rate &times; 4 kcal/g.
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% if preview_rmr %}
+        <div class="notification is-info is-light py-2">
+            RMR <strong>{{ "%.0f"|format(preview_rmr) }}</strong> kcal/day &middot;
+            baseline TDEE <strong>{{ "%.0f"|format(preview_tdee) }}</strong> kcal/day
+            (before any riding), using your most recent weight entry.
+        </div>
+        {% endif %}
+        <div class="field">
+            <button class="button is-primary" type="submit">Save Body Metrics</button>
+        </div>
+    </form>
+</div>
+
+<div class="box">
+    <h2 class="title is-5">Weight Log</h2>
+    <p class="help mb-3">
+        Each day&rsquo;s energy balance uses the weight in effect on that date, so past numbers
+        stay accurate as your weight changes.
+    </p>
+    <form method="post" action="/settings/weight">
+        <div class="field is-grouped">
+            <div class="control">
+                <input class="input" type="date" name="date" value="{{ today }}" required>
+            </div>
+            <div class="control">
+                <input class="input" type="number" step="0.1" name="weight_lb" placeholder="Weight (lb)" required>
+            </div>
+            <div class="control">
+                <button class="button is-primary" type="submit">Add Entry</button>
+            </div>
+        </div>
+    </form>
+
+    {% if weights %}
+    <table class="table is-fullwidth is-narrow is-hoverable mt-3">
+        <tbody>
+        {% for w in weights %}
+            <tr>
+                <td>{{ w.date }}</td>
+                <td>{{ "%.1f"|format(w.weight_lb) }} lb</td>
+                <td class="has-text-grey is-size-7">{{ w.source or "manual" }}</td>
+                <td class="has-text-right">
+                    <form method="post" action="/settings/weight/delete">
+                        <input type="hidden" name="date" value="{{ w.date }}">
+                        <button class="delete" type="submit" title="Delete entry"></button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="has-text-grey mt-3">No weight entries yet.</p>
+    {% endif %}
+
+    <hr>
+    <form method="post" action="/settings/biometrics" enctype="multipart/form-data">
+        <label class="label is-small">Or import a Cronometer biometrics CSV</label>
+        <div class="field is-grouped">
+            <div class="control is-expanded">
+                <input class="input is-small" type="file" name="file" accept=".csv">
+            </div>
+            <div class="control">
+                <button class="button is-small" type="submit">Import Weights</button>
+            </div>
+        </div>
+    </form>
+</div>
 {% endblock %}

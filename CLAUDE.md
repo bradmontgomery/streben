@@ -40,6 +40,9 @@ The app will be accessible at `http://localhost:8000`. The SQLite database is au
 ```bash
 # Backfill missing stream data from Strava (preferred over web UI for large batches)
 uv run strava-cli backfill-streams [--limit N]
+
+# Import a Cronometer daily summary CSV (re-importing a date overwrites it)
+uv run strava-cli import-cronometer path/to/dailysummary.csv
 ```
 
 ### Strava API Setup
@@ -62,11 +65,16 @@ app/
 │   ├── activities.py    # GET /activities/:id — activity detail + chart
 │   ├── strava.py        # Strava OAuth, sync, stream fetch/backfill
 │   ├── fit_upload.py    # GET/POST /upload   — FIT file upload
+│   ├── nutrition.py     # Nutrition page, Cronometer CSV import, energy-balance API
 │   └── trends.py        # GET /trends, GET /api/trends — trends page + JSON API
 ├── services/
 │   ├── strava_client.py # Strava API client (auth, tokens, activities, streams)
 │   ├── fit_parser.py    # FIT file decoding via garmin-fit-sdk
-│   └── charts.py        # Plotly chart generation for activity streams
+│   ├── charts.py        # Plotly chart generation for activity streams
+│   ├── cronometer.py    # Cronometer CSV parsing (nutrition + biometrics)
+│   ├── energy.py        # Mifflin–St Jeor RMR, daily energy balance
+│   ├── nutrition.py     # Nutrition/body-metric persistence
+│   └── ranges.py        # Shared time-range vocabulary
 └── templates/           # Jinja2 templates (base, dashboard, detail, trends, etc.)
 ```
 
@@ -96,3 +104,22 @@ app/
 - Bulma CSS via CDN with dark/light mode toggle (persisted in localStorage)
 - All pages are server-rendered; minimal inline JS for interactivity
 - Flash messages via query parameters, displayed as dismissible Bulma notifications
+
+### Nutrition & Energy Balance
+- Cronometer `dailysummary.csv` is imported per calendar day into the `nutrition` table; all 61
+  export columns are kept as `raw_data` JSON, with curated macros promoted to real columns
+- **Blank is not zero.** An unlogged day has every nutrient cell empty in the export. Blanks are
+  stored as `NULL`; `is_logged` is `energy_kcal IS NOT NULL`. The `Completed` flag is display-only —
+  it is almost never ticked and must not be used to decide whether a day has data
+- Ride energy is joined on **local** date via `json_extract(raw_data, '$.start_date_local')`, not
+  `start_date` — the latter is UTC and misattributes 110 of 2190 activities (evening rides)
+- `ride_kj` is treated as kcal 1:1: at ~24% gross cycling efficiency, kJ / 0.24 / 4.184 ≈ kJ. This
+  is physiology, not a missing unit conversion
+- Food eaten *during* rides is not logged, so it is estimated as
+  `ride_hours × carb_rate_g_per_hr × 4` and always rendered as visibly an estimate
+- RMR uses Mifflin–St Jeor with the weight in effect on **that date** (`body_metrics` is
+  date-stamped), so past balances stay correct as weight changes
+- `activity_multiplier` must stay at 1.2 (sedentary) — ride energy is added separately, so a higher
+  multiplier double-counts rides
+- `/api/trends` is per-activity; `/api/nutrition-trends` is a dense per-calendar-day spine. They are
+  deliberately separate endpoints with different grains

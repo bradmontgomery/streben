@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Nutrition - Streben{% endblock %}
+
+{% block content %}
+<div class="level">
+    <div class="level-left">
+        <div class="level-item">
+            <h1 class="title">Nutrition</h1>
+        </div>
+    </div>
+    <div class="level-right">
+        <div class="level-item">
+            <div class="buttons has-addons" id="range-buttons">
+                {% for key, label in [('1w','1W'), ('1m','1M'), ('3m','3M'), ('6m','6M'), ('1y','1Y'), ('all','All')] %}
+                <a class="button is-small {% if current_range == key %}is-info is-selected{% endif %}"
+                   href="/nutrition?range={{ key }}&amp;per_page={{ per_page }}">{{ label }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="level-item ml-3">
+            <a class="button is-small is-primary" href="/nutrition/upload">Import Cronometer CSV</a>
+        </div>
+    </div>
+</div>
+
+{% if not configured %}
+<div class="notification is-warning is-light">
+    <strong>Body metrics not set.</strong> Enter your height, birth date and a weight entry in
+    <a href="/settings">Settings</a> to calculate your energy balance.
+</div>
+{% endif %}
+
+{% if summary.logged_days %}
+<div class="box">
+    <div class="level mb-0">
+        <div class="level-item has-text-centered">
+            <div>
+                <p class="heading">Logged Days</p>
+                <p class="title is-4">{{ summary.logged_days }}</p>
+            </div>
+        </div>
+        <div class="level-item has-text-centered">
+            <div>
+                <p class="heading">Total Balance</p>
+                <p class="title is-4 {% if summary.total_balance < 0 %}has-text-success{% else %}has-text-danger{% endif %}">
+                    {{ "%+.0f"|format(summary.total_balance) }} kcal
+                </p>
+            </div>
+        </div>
+        <div class="level-item has-text-centered">
+            <div>
+                <p class="heading">Mean / Day</p>
+                <p class="title is-4 {% if summary.mean_balance < 0 %}has-text-success{% else %}has-text-danger{% endif %}">
+                    {{ "%+.0f"|format(summary.mean_balance) }} kcal
+                </p>
+            </div>
+        </div>
+        <div class="level-item has-text-centered">
+            <div>
+                <p class="heading">Est. Weight Change</p>
+                <p class="title is-4">{{ "%+.1f"|format(summary.total_balance / 3500) }} lb</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if days %}
+<div class="table-container">
+    <table class="table is-fullwidth is-hoverable is-striped">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Intake</th>
+                <th title="Estimated from ride time, not logged in Cronometer">On-Bike (est.)</th>
+                <th>Ride kJ</th>
+                <th>Baseline</th>
+                <th>Need</th>
+                <th>Balance</th>
+                <th>Weight</th>
+                <th title="Carbs / Fat / Protein, grams">C/F/P</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for d in days %}
+            <tr>
+                <td>
+                    {{ d.date }}
+                    {% if not d.is_logged %}<span class="tag is-danger ml-1">not logged</span>{% endif %}
+                    {% if d.is_logged and not d.completed %}<span class="has-text-warning ml-1" title="Not marked complete in Cronometer">&#9888;</span>{% endif %}
+                </td>
+                <td>{{ "%.0f"|format(d.intake_logged) if d.intake_logged is not none else "&mdash;"|safe }}</td>
+                <td>
+                    {% if d.intake_onbike_est %}
+                    <em title="{{ "%.2f"|format(d.ride_seconds / 3600) }} h &times; {{ carb_rate }} g/hr &times; 4 kcal/g">
+                        +{{ "%.0f"|format(d.intake_onbike_est) }}
+                    </em>
+                    {% else %}&mdash;{% endif %}
+                </td>
+                <td>{{ "%.0f"|format(d.ride_kj) if d.ride_kj is not none else "&mdash;"|safe }}</td>
+                <td>{{ "%.0f"|format(d.baseline_tdee) if d.baseline_tdee is not none else "&mdash;"|safe }}</td>
+                <td>{{ "%.0f"|format(d.need) if d.need is not none else "&mdash;"|safe }}</td>
+                <td>
+                    {% if d.balance is not none %}
+                    <span class="{% if d.balance < 0 %}has-text-success{% else %}has-text-danger{% endif %}"
+                          title="intake {{ "%.0f"|format(d.intake_total) }} &minus; need {{ "%.0f"|format(d.need) }}">
+                        <strong>{{ "%+.0f"|format(d.balance) }}</strong>
+                    </span>
+                    {% else %}&mdash;{% endif %}
+                </td>
+                <td>{{ "%.1f"|format(d.weight_lb) if d.weight_lb is not none else "&mdash;"|safe }}</td>
+                <td>
+                    {% if d.is_logged %}
+                        {{ "%.0f"|format(d.carbs_g or 0) }}/{{ "%.0f"|format(d.fat_g or 0) }}/{{ "%.0f"|format(d.protein_g or 0) }}
+                    {% else %}&mdash;{% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if total_pages > 1 %}
+{% set qs = "&range=" ~ current_range ~ "&per_page=" ~ per_page %}
+<nav class="pagination is-centered mt-4" role="navigation" aria-label="pagination">
+    <a class="pagination-previous" {% if page > 1 %}href="/nutrition?page={{ page - 1 }}{{ qs }}"{% else %}disabled{% endif %}>Previous</a>
+    <a class="pagination-next" {% if page < total_pages %}href="/nutrition?page={{ page + 1 }}{{ qs }}"{% else %}disabled{% endif %}>Next</a>
+    <ul class="pagination-list">
+        {% if page > 2 %}
+        <li><a class="pagination-link" href="/nutrition?page=1{{ qs }}">1</a></li>
+        {% endif %}
+        {% if page > 3 %}
+        <li><span class="pagination-ellipsis">&hellip;</span></li>
+        {% endif %}
+        {% for p in range([1, page - 1]|max, [total_pages, page + 1]|min + 1) %}
+        <li><a class="pagination-link {% if p == page %}is-current{% endif %}"
+               href="/nutrition?page={{ p }}{{ qs }}">{{ p }}</a></li>
+        {% endfor %}
+        {% if page < total_pages - 2 %}
+        <li><span class="pagination-ellipsis">&hellip;</span></li>
+        {% endif %}
+        {% if page < total_pages - 1 %}
+        <li><a class="pagination-link" href="/nutrition?page={{ total_pages }}{{ qs }}">{{ total_pages }}</a></li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+<p class="has-text-grey is-size-7 has-text-centered mt-2">
+    Showing {{ days|length }} of {{ total }} days &mdash; {{ summary.logged_days }} logged in this range.
+    Negative balance is a deficit. On-bike calories are estimated from ride time, not logged.
+</p>
+{% else %}
+<div class="has-text-centered py-6">
+    <p class="subtitle">No nutrition data yet.</p>
+    <a class="button is-primary" href="/nutrition/upload">Import Cronometer CSV</a>
+</div>
+{% endif %}
+{% endblock %}

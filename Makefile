@@ -4,7 +4,7 @@ install:  ## Install dependencies
 	uv sync
 
 run:  ## Start the web server on port 8000
-	uv run uvicorn app.main:app --port 8000
+	uv run uvicorn app.main:app --port 8000 --reload
 
 backfill:  ## Backfill streams for up to 100 activities
 	uv run strava-cli backfill-streams --limit 100
