@@ -74,6 +74,37 @@ CREATE TABLE IF NOT EXISTS zone_settings (
     hr_z4 INTEGER NOT NULL DEFAULT 160,
     hr_z5 INTEGER NOT NULL DEFAULT 175
 );
+
+CREATE TABLE IF NOT EXISTS nutrition (
+    date         TEXT PRIMARY KEY,
+    energy_kcal  REAL,
+    carbs_g      REAL,
+    fat_g        REAL,
+    protein_g    REAL,
+    fiber_g      REAL,
+    sugars_g     REAL,
+    sodium_mg    REAL,
+    completed    INTEGER,
+    raw_data     TEXT,
+    imported_at  TEXT
+);
+
+CREATE TABLE IF NOT EXISTS body_metrics (
+    date      TEXT PRIMARY KEY,
+    weight_lb REAL NOT NULL,
+    source    TEXT
+);
+
+CREATE TABLE IF NOT EXISTS nutrition_settings (
+    id                  INTEGER PRIMARY KEY CHECK (id = 1),
+    height_in           REAL,
+    birth_date          TEXT,
+    sex                 TEXT NOT NULL DEFAULT 'male',
+    activity_multiplier REAL NOT NULL DEFAULT 1.2,
+    carb_rate_g_per_hr  REAL NOT NULL DEFAULT 45
+);
+
+CREATE INDEX IF NOT EXISTS idx_activities_start_date ON activities(start_date);
 """
 
 
@@ -105,5 +136,6 @@ def init_db():
         if col_name not in existing:
             conn.execute(sql)
     conn.execute("INSERT OR IGNORE INTO zone_settings (id) VALUES (1)")
+    conn.execute("INSERT OR IGNORE INTO nutrition_settings (id) VALUES (1)")
     conn.commit()
     conn.close()

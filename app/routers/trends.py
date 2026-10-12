@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from app.database import get_db
+from app.services.ranges import RANGE_MAP
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -15,15 +16,7 @@ def trends_page(request: Request):
 
 @router.get("/api/trends")
 def trends_data(range: str = "6m"):
-    range_map = {
-        "1w": "-7 days",
-        "1m": "-1 months",
-        "3m": "-3 months",
-        "6m": "-6 months",
-        "1y": "-1 years",
-        "all": None,
-    }
-    offset = range_map.get(range, "-6 months")
+    offset = RANGE_MAP.get(range, "-6 months")
 
     db = get_db()
     if offset:

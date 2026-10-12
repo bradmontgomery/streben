@@ -9,6 +9,8 @@ A locally-running web application for syncing, storing, and visualizing cycling 
 - **Activity Dashboard** — Paginated list of all activities with stream data indicators
 - **Activity Detail** — Summary stats and interactive Plotly charts of power, HR, cadence
 - **Trends** — Time-series charts (Apache ECharts) with metric toggles, time range selection, and trend lines
+- **Nutrition & Energy Balance** — Import Cronometer CSV exports and see daily calories in vs.
+  kJ burned, with a cumulative surplus/deficit line
 - **Dark/Light Mode** — Theme toggle persisted in browser
 
 ## Quick Start
@@ -42,6 +44,9 @@ The app will be accessible at `http://localhost:8000`. The SQLite database is au
 ```bash
 # Backfill missing stream data (preferred for large batches)
 uv run strava-cli backfill-streams [--limit N]
+
+# Import a Cronometer daily nutrition summary (re-importing a date overwrites it)
+uv run strava-cli import-cronometer ~/Downloads/dailysummary.csv
 ```
 
 ## Architecture

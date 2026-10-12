@@ -1,4 +1,5 @@
 import json
+from datetime import date
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
@@ -8,6 +9,8 @@ from fastapi.templating import Jinja2Templates
 from app.database import get_db
 from app.services import strava_client
 from app.services import zones as zone_service
+from app.services import energy as energy_service
+from app.services import nutrition as nutrition_service
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -17,10 +20,17 @@ templates = Jinja2Templates(directory="app/templates")
 def settings_page(request: Request):
     auth = strava_client.get_auth()
     zone_settings = zone_service.get_zone_settings()
+    nutrition_settings = energy_service.get_nutrition_settings()
+    preview_rmr, preview_tdee = energy_service.preview_rmr()
     flash = request.query_params.get("flash")
     return templates.TemplateResponse(request, "settings.html", {
         "auth": auth,
         "zone_settings": zone_settings,
+        "nutrition_settings": nutrition_settings,
+        "weights": nutrition_service.list_weights(),
+        "preview_rmr": preview_rmr,
+        "preview_tdee": preview_tdee,
+        "today": date.today().isoformat(),
         "flash": flash,
     })
 
