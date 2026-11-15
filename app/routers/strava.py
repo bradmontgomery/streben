@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import date
 from urllib.parse import quote
 
@@ -7,13 +8,15 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.database import get_db
-from app.services import strava_client
+from app.services import strava_client, wahoo_client, wahoo_sync
+from app.services.activity_store import find_overlapping_activity
 from app.services import zones as zone_service
 from app.services import energy as energy_service
 from app.services import nutrition as nutrition_service
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+logger = logging.getLogger(__name__)
 
 
 @router.get("/settings")
@@ -25,6 +28,8 @@ def settings_page(request: Request):
     flash = request.query_params.get("flash")
     return templates.TemplateResponse(request, "settings.html", {
         "auth": auth,
+        "wahoo_auth": wahoo_client.get_auth() or wahoo_client.default_credentials(),
+        "wahoo_zones": _wahoo_zones(),
         "zone_settings": zone_settings,
         "nutrition_settings": nutrition_settings,
         "weights": nutrition_service.list_weights(),
@@ -33,6 +38,14 @@ def settings_page(request: Request):
         "today": date.today().isoformat(),
         "flash": flash,
     })
+
+
+def _wahoo_zones():
+    db = get_db()
+    try:
+        return wahoo_sync.stored_bike_zones(db)
+    finally:
+        db.close()
 
 
 @router.post("/settings")
@@ -101,6 +114,7 @@ def strava_sync():
 
     db = get_db()
     new_count = 0
+    dup_count = 0
 
     for act in activities:
         strava_id = act["id"]
@@ -108,6 +122,15 @@ def strava_sync():
             "SELECT id FROM activities WHERE strava_id = ?", (strava_id,)
         ).fetchone()
         if existing:
+            continue
+
+        # Same ride already imported from another source (e.g. Wahoo)? Importing it again
+        # would double-count its energy in the daily balance.
+        overlap = find_overlapping_activity(db, act.get("start_date"), "strava")
+        if overlap:
+            logger.info("Skipping Strava activity %s: overlaps activity %s (%s)",
+                        strava_id, overlap["id"], overlap["source"])
+            dup_count += 1
             continue
 
         db.execute(
@@ -163,7 +186,10 @@ def strava_sync():
     db.commit()
     db.close()
 
-    return RedirectResponse(f"/?flash=Synced+{new_count}+new+activities", status_code=303)
+    msg = f"Synced+{new_count}+new+activities"
+    if dup_count:
+        msg += f"+(skipped+{dup_count}+already+imported+from+another+source)"
+    return RedirectResponse(f"/?flash={msg}", status_code=303)
 
 
 @router.post("/strava/fetch-streams/{activity_id}")

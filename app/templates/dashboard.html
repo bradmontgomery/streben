@@ -32,6 +32,11 @@
                 <form method="post" action="/strava/sync">
                     <button class="button is-primary" type="submit">Sync from Strava</button>
                 </form>
+                {% if wahoo_connected %}
+                <form method="post" action="/wahoo/sync">
+                    <button class="button is-link" type="submit">Sync from Wahoo</button>
+                </form>
+                {% endif %}
                 <form method="post" action="/strava/backfill-streams">
                     <button class="button is-info is-outlined" type="submit">Backfill Streams</button>
                 </form>
@@ -65,7 +70,7 @@
                     {% if a.id not in has_streams %}<span class="has-text-warning" title="No stream data">&#9888;</span>{% endif %}
                 </td>
                 <td>
-                    <span class="tag {% if a.source == 'strava' %}is-warning{% else %}is-info{% endif %}">
+                    <span class="tag {% if a.source == 'strava' %}is-warning{% elif a.source == 'wahoo' %}is-link{% else %}is-info{% endif %}">
                         {{ a.source }}
                     </span>
                 </td>

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.database import init_db
-from app.routers import activities, dashboard, fit_upload, nutrition, strava, trends
+from app.routers import activities, dashboard, fit_upload, nutrition, strava, trends, wahoo
 
 app = FastAPI(title="Streben")
 
@@ -11,6 +11,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(dashboard.router)
 app.include_router(activities.router)
 app.include_router(strava.router)
+app.include_router(wahoo.router)
 app.include_router(fit_upload.router)
 app.include_router(trends.router)
 app.include_router(nutrition.router)

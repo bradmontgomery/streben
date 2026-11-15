@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS activities (
     average_temp REAL,
     summary_polyline TEXT,
     fit_filename TEXT,
-    raw_data TEXT
+    raw_data TEXT,
+    wahoo_id INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS activity_streams (
@@ -104,6 +105,29 @@ CREATE TABLE IF NOT EXISTS nutrition_settings (
     carb_rate_g_per_hr  REAL NOT NULL DEFAULT 45
 );
 
+CREATE TABLE IF NOT EXISTS wahoo_auth (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    client_id TEXT NOT NULL,
+    client_secret TEXT NOT NULL,
+    redirect_uri TEXT,
+    access_token TEXT,
+    refresh_token TEXT,
+    expires_at INTEGER,
+    history_synced_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS wahoo_power_zones (
+    wahoo_id                 INTEGER PRIMARY KEY,
+    workout_type_id          INTEGER,
+    workout_type_family_id   INTEGER,
+    zone_1 REAL, zone_2 REAL, zone_3 REAL, zone_4 REAL,
+    zone_5 REAL, zone_6 REAL, zone_7 REAL,
+    ftp            REAL,
+    critical_power REAL,
+    raw_data       TEXT,
+    synced_at      TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_activities_start_date ON activities(start_date);
 """
 
@@ -124,6 +148,7 @@ MIGRATIONS = [
     ("device_name", "ALTER TABLE activities ADD COLUMN device_name TEXT"),
     ("average_temp", "ALTER TABLE activities ADD COLUMN average_temp REAL"),
     ("summary_polyline", "ALTER TABLE activities ADD COLUMN summary_polyline TEXT"),
+    ("wahoo_id", "ALTER TABLE activities ADD COLUMN wahoo_id INTEGER"),
 ]
 
 
@@ -135,6 +160,10 @@ def init_db():
     for col_name, sql in MIGRATIONS:
         if col_name not in existing:
             conn.execute(sql)
+    # ADD COLUMN can't add UNIQUE, so enforce it with an index (runs after the migration)
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_activities_wahoo_id ON activities(wahoo_id)"
+    )
     conn.execute("INSERT OR IGNORE INTO zone_settings (id) VALUES (1)")
     conn.execute("INSERT OR IGNORE INTO nutrition_settings (id) VALUES (1)")
     conn.commit()

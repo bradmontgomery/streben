@@ -92,7 +92,7 @@
 </script>
 <p class="subtitle">
     {{ activity.start_date[:10] if activity.start_date else "" }}
-    <span class="tag {% if activity.source == 'strava' %}is-warning{% else %}is-info{% endif %} ml-2">
+    <span class="tag {% if activity.source == 'strava' %}is-warning{% elif activity.source == 'wahoo' %}is-link{% else %}is-info{% endif %} ml-2">
         {{ activity.source }}
     </span>
     {% if activity.sport_type %}

@@ -33,6 +33,7 @@ class Activity:
     summary_polyline: Optional[str]
     fit_filename: Optional[str]
     raw_data: Optional[str]
+    wahoo_id: Optional[int] = None
 
     @classmethod
     def from_row(cls, row) -> "Activity":

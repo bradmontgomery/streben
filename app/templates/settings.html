@@ -71,6 +71,95 @@
     </div>
 </div>
 
+<h2 class="title is-4">Wahoo</h2>
+<div class="columns">
+    <div class="column">
+        <div class="box">
+            <h2 class="title is-5">API Credentials</h2>
+            <form method="post" action="/settings/wahoo">
+                <div class="field">
+                    <label class="label">Client ID</label>
+                    <div class="control">
+                        <input class="input" type="text" name="client_id"
+                               value="{{ wahoo_auth.client_id or '' }}"
+                               placeholder="Your Wahoo App Client ID">
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Client Secret</label>
+                    <div class="control">
+                        <input class="input" type="password" name="client_secret"
+                               value="{{ wahoo_auth.client_secret or '' }}"
+                               placeholder="Your Wahoo App Client Secret">
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Redirect URI</label>
+                    <div class="control">
+                        <input class="input" type="text" name="redirect_uri"
+                               value="{{ wahoo_auth.redirect_uri or '' }}"
+                               placeholder="https://localhost:8000/wahoo/redirect">
+                    </div>
+                    <p class="help">
+                        Must exactly match a callback URL registered for your app in the
+                        <a href="https://developers.wahooligan.com" target="_blank" rel="noopener">Wahoo developer portal</a>.
+                        If it starts with <code>https://</code>, run uvicorn with TLS
+                        (<code>--ssl-keyfile</code>/<code>--ssl-certfile</code>, e.g. certificates from mkcert);
+                        otherwise register an <code>http://</code> callback instead.
+                    </p>
+                </div>
+                <div class="field">
+                    <button class="button is-primary" type="submit">Save Credentials</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="column">
+        <div class="box">
+            <h2 class="title is-5">Connection Status</h2>
+            {% if wahoo_auth.access_token %}
+                <div class="notification is-success is-light">
+                    <strong>Connected to Wahoo</strong>
+                </div>
+            {% else %}
+                <div class="notification is-warning is-light">
+                    <strong>Not connected</strong> — save your credentials, then connect.
+                </div>
+            {% endif %}
+
+            {% if wahoo_auth.id %}
+            <div class="buttons">
+                <a href="/wahoo/connect" class="button is-link">
+                    {% if wahoo_auth.access_token %}Reconnect to Wahoo{% else %}Connect to Wahoo{% endif %}
+                </a>
+                {% if wahoo_auth.access_token %}
+                <form method="post" action="/wahoo/disconnect">
+                    <button class="button is-danger is-outlined" type="submit">Disconnect</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if wahoo_auth.access_token %}
+            <hr>
+            <h3 class="title is-6">Power Zones</h3>
+            {% if wahoo_zones %}
+                <p class="mb-2">
+                    Last imported from Wahoo:
+                    {% if wahoo_zones.ftp %}FTP <strong>{{ "%.0f"|format(wahoo_zones.ftp) }} W</strong>,{% endif %}
+                    zones 1–7
+                    {% for i in range(1, 8) %}{% set z = wahoo_zones["zone_%d"|format(i)] %}{% if z is not none %}{{ "%.0f"|format(z) }}{% if not loop.last %} / {% endif %}{% endif %}{% endfor %} W
+                </p>
+            {% endif %}
+            <form method="post" action="/wahoo/sync-zones">
+                <button class="button is-info is-outlined" type="submit">Import zones from Wahoo</button>
+            </form>
+            <p class="help mt-2">Overwrites the power zones below with your Wahoo cycling zones. Heart rate zones are kept.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
 <div class="box">
     <h2 class="title is-5">Heart Rate &amp; Power Zones</h2>
     <p class="help mb-3">Enter the lower bound for each zone. Zone 5 has no upper limit.</p>

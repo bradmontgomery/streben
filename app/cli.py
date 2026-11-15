@@ -155,6 +155,32 @@ def backfill_nutrition_fields(args):
     print(f"Updated {updated} nutrition days from stored raw_data.")
 
 
+def sync_wahoo(args):
+    from app.services import wahoo_client, wahoo_sync
+
+    init_db()
+    if not wahoo_client.is_connected():
+        print("Not connected to Wahoo. Connect from the Settings page first.")
+        sys.exit(1)
+    db = get_db()
+    try:
+        if args.zones:
+            print(wahoo_sync.sync_power_zones(db))
+
+        def progress(r):
+            print(f"\r  inserted {r.inserted}, already stored {r.skipped_known}, "
+                  f"duplicates {r.skipped_dup}", end="", flush=True)
+
+        result = wahoo_sync.sync_workouts(db, full=args.full, max_pages=args.max_pages,
+                                          progress=progress)
+        print()
+        for d in result.duplicates:
+            print(f"  skipped duplicate: {d}")
+        print(result.message())
+    finally:
+        db.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Strava Activity Tracker CLI")
     sub = parser.add_subparsers(dest="command")
@@ -177,6 +203,13 @@ def main():
     bn = sub.add_parser("backfill-nutrition-fields",
                         help="Re-extract nutrition columns from stored raw_data")
     bn.set_defaults(func=backfill_nutrition_fields)
+
+    sw = sub.add_parser("sync-wahoo", help="Sync workouts (and optionally power zones) from Wahoo")
+    sw.add_argument("--full", action="store_true",
+                    help="Page through the whole history instead of stopping at known workouts")
+    sw.add_argument("--zones", action="store_true", help="Also import power zones")
+    sw.add_argument("--max-pages", type=int, default=None, help="Stop after N pages of workouts")
+    sw.set_defaults(func=sync_wahoo)
 
     args = parser.parse_args()
     if not args.command:

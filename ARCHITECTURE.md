@@ -2,7 +2,7 @@
 
 ## Overview
 
-Streben is a locally-running web application for syncing, storing, and visualizing cycling activity data. It ingests data from two sources — the Strava API and Garmin FIT files — stores everything in a local SQLite database, and presents it through a server-rendered web UI.
+Streben is a locally-running web application for syncing, storing, and visualizing cycling activity data. It ingests data from three sources — the Strava API, the Wahoo Cloud API, and Garmin FIT files — stores everything in a local SQLite database, and presents it through a server-rendered web UI.
 
 The application is built with **FastAPI** and **Jinja2** templates, styled with **Bulma CSS** (via CDN), and uses **Plotly** and **Apache ECharts** for data visualization. There is no JavaScript frontend framework; all pages are server-rendered with minimal inline JS for interactivity.
 
@@ -35,10 +35,14 @@ streben/
 │   │   ├── dashboard.py     # GET /              — paginated activity list
 │   │   ├── activities.py    # GET /activities/:id — activity detail + chart
 │   │   ├── strava.py        # Strava OAuth, sync, stream fetch/backfill
+│   │   ├── wahoo.py         # Wahoo OAuth, workout sync, power-zone import
 │   │   ├── fit_upload.py    # GET/POST /upload   — FIT file upload
 │   │   └── trends.py        # GET /trends, GET /api/trends — trends page + JSON API
 │   ├── services/
 │   │   ├── strava_client.py # Strava API client (auth, tokens, activities, streams)
+│   │   ├── wahoo_client.py  # Wahoo Cloud API client (auth, tokens, rate limits, FIT download)
+│   │   ├── wahoo_sync.py    # Wahoo workout → activity mapping, sync loop, zone import
+│   │   ├── activity_store.py # Shared activity insert + cross-source duplicate check
 │   │   ├── fit_parser.py    # FIT file decoding via garmin-fit-sdk
 │   │   └── charts.py        # Plotly chart generation for activity streams
 │   └── templates/
@@ -46,10 +50,11 @@ streben/
 │       ├── dashboard.html    # Activity table with pagination
 │       ├── activity_detail.html # Stats summary + Plotly stream chart
 │       ├── fit_upload.html   # FIT file upload form
-│       ├── settings.html     # Strava API credentials + connection status
+│       ├── settings.html     # Strava + Wahoo credentials, connection status, zones
 │       └── trends.html       # ECharts time-series with metric/range toggles
 ├── data/
 │   └── strava.db            # SQLite database (created at runtime)
+├── tests/                   # pytest (uv run pytest)
 ├── pyproject.toml
 └── uv.lock
 ```
@@ -70,14 +75,25 @@ Single-row table (`CHECK id = 1`) storing Strava OAuth credentials and tokens.
 | refresh_token | TEXT    | OAuth refresh token       |
 | expires_at    | INTEGER | Token expiry (Unix epoch) |
 
+### `wahoo_auth`
+Single-row table (`CHECK id = 1`) like `strava_auth`, plus `redirect_uri` — the OAuth callback
+must exactly match one registered in the Wahoo developer portal, so it is stored rather than
+derived from the request. Defaults to `https://localhost:8000/wahoo/redirect`. Access tokens last
+2 hours; `expires_at` is computed from `expires_in`.
+
+### `wahoo_power_zones`
+One row per Wahoo power-zone entry (Wahoo keeps one per workout type), keyed by Wahoo's id:
+`zone_1`..`zone_7`, `ftp`, `critical_power`, `raw_data`, `synced_at`.
+
 ### `activities`
-Unified table for both Strava-synced and FIT-uploaded activities.
+Unified table for Strava-synced, Wahoo-synced, and FIT-uploaded activities.
 
 | Column                  | Type    | Notes                              |
 |-------------------------|---------|------------------------------------|
 | id                      | INTEGER | PK autoincrement                   |
 | strava_id               | INTEGER | UNIQUE, nullable (null for FIT)    |
-| source                  | TEXT    | `"strava"` or `"fit_upload"`       |
+| wahoo_id                | INTEGER | UNIQUE index, nullable (Wahoo only) |
+| source                  | TEXT    | `"strava"`, `"wahoo"`, or `"fit_upload"` |
 | name                    | TEXT    | Activity name or filename          |
 | sport_type              | TEXT    | e.g. "Ride", "VirtualRide"        |
 | start_date              | TEXT    | ISO 8601 datetime                  |
@@ -97,7 +113,7 @@ Unified table for both Strava-synced and FIT-uploaded activities.
 | kilojoules              | REAL    |                                    |
 | suffer_score            | REAL    | Strava-only                        |
 | fit_filename            | TEXT    | FIT upload only                    |
-| raw_data                | TEXT    | Full Strava JSON (Strava only)     |
+| raw_data                | TEXT    | Full Strava or Wahoo workout JSON; Wahoo rows get a computed `start_date_local` |
 
 ### `activity_streams`
 Per-second time-series data for activities. Indexed on `activity_id`.
@@ -174,6 +190,43 @@ Browser POST /strava/sync
   → Redirect to dashboard with count
 ```
 
+### Cross-source duplicates
+
+The same ride can arrive from Strava and Wahoo (Wahoo auto-uploads to Strava). Energy balance
+sums `kilojoules` across all activities, so a duplicate would double-count. Both syncs call
+`activity_store.find_overlapping_activity()` and skip an incoming activity when an existing one
+from a *different* source starts within ±5 minutes (same-source repeats are caught by
+`strava_id`/`wahoo_id`, and two real activities from one source may start minutes apart) (`julianday` compares Strava's `…Z` and FIT's `… +00:00`
+formats alike). Whichever source imports a ride first keeps it.
+
+### Wahoo Sync
+
+```
+Browser POST /wahoo/sync   (or: strava-cli sync-wahoo [--full])
+  → wahoo_client.list_workouts(page)  (50/page, newest first)
+  → For each workout with a workout_summary (planned workouts have none):
+      skip if wahoo_id known, or if it overlaps an existing activity
+      → wahoo_sync.map_workout()   — summary → activity columns (decimals arrive as strings;
+                                     work_accum J → kJ; start_date_local from summary.time_zone)
+      → download workout_summary.file.url → fit_parser.parse_fit_file()
+                                   — streams, plus maxima the summary lacks
+      → activity_store.insert_activity(); COMMIT per workout
+  → Incremental: stop at the first page that adds nothing (all stored or duplicates).
+    Until one pass has reached the end of the history (wahoo_auth.history_synced_at), every
+    sync pages the whole history, so an interrupted first backfill resumes on the next click.
+    --full always pages everything. Paging ends by counting returned workouts against `total`,
+    since Wahoo may cap per_page.
+```
+
+Wahoo rate limits (sandbox: 25 / 5 min, 100 / hour, 250 / day) are read from the
+`X-RateLimit-*` headers; the sync stops cleanly and reports when a window is exhausted. FIT
+downloads and token calls don't count. If a FIT download fails the activity is kept without
+streams, and any later sync that re-reads that workout retries the download. Workouts recorded by third-party apps never appear in the Wahoo API.
+
+**Power zones**: `POST /wahoo/sync-zones` stores every entry in `wahoo_power_zones`, picks the
+cycling one, and writes the 5 local power-zone lower bounds as `0, zone_1..zone_4` (Wahoo values
+are treated as zone upper bounds). Heart-rate zones are untouched.
+
 ### Strava OAuth
 
 ```
@@ -239,6 +292,12 @@ For activities synced before stream fetching was implemented:
 | POST   | `/strava/sync`                    | Sync all activities from Strava    |
 | POST   | `/strava/backfill-streams`        | Backfill streams for all activities |
 | POST   | `/strava/fetch-streams/{id}`      | Fetch streams for one activity     |
+| POST   | `/settings/wahoo`                 | Save Wahoo credentials + redirect URI |
+| GET    | `/wahoo/connect`                  | Start Wahoo OAuth flow (sets state cookie) |
+| GET    | `/wahoo/redirect`                 | Wahoo OAuth callback               |
+| POST   | `/wahoo/disconnect`               | Revoke access (`DELETE /v1/permissions`) |
+| POST   | `/wahoo/sync`                     | Incremental Wahoo workout sync     |
+| POST   | `/wahoo/sync-zones`               | Import power zones from Wahoo      |
 | GET    | `/trends`                         | Trends page                        |
 | GET    | `/api/trends?range=6m`            | Trends JSON data                   |
 | GET    | `/nutrition`                      | Nutrition & energy balance table   |
@@ -253,7 +312,7 @@ For activities synced before stream fetching was implemented:
 ## Pages
 
 ### Dashboard (`/`)
-Paginated table of all activities (default 100/page). Shows date, name, source tag, sport type, duration, distance, avg watts, avg HR. Warning icon on activities missing stream data. Buttons for Strava sync and stream backfill.
+Paginated table of all activities (default 100/page). Shows date, name, source tag, sport type, duration, distance, avg watts, avg HR. Warning icon on activities missing stream data. Buttons for Strava sync, Wahoo sync (shown only when Wahoo is connected), and stream backfill.
 
 ### Activity Detail (`/activities/:id`)
 Summary stats bar (duration, distance, power, HR, energy), interactive Plotly chart of stream data (watts, HR, cadence), additional stats section. "View on Strava" badge links to the original activity for Strava-sourced data. "Fetch Streams from Strava" button when stream data is missing.
@@ -283,7 +342,8 @@ File input for .fit files. Parses and stores the activity + streams on upload, t
 Strava API credential management (client ID/secret), connection status with human-readable token
 expiry, and OAuth connect/reconnect button. Also holds heart-rate/power zones, body metrics
 (height, birth date, sex, activity multiplier, on-bike carb rate) with a live RMR/TDEE preview,
-and the dated weight log.
+and the dated weight log. A Wahoo section mirrors the Strava one (credentials, redirect URI,
+connect/disconnect) and adds "Import zones from Wahoo" with the last-imported FTP.
 
 ## UI
 
@@ -301,6 +361,14 @@ uv run strava-cli backfill-streams [--limit N]
 ```
 
 Fetches missing stream data from Strava with per-activity progress output, 1-second delay between API calls to respect rate limits (100 requests / 15 minutes).
+
+```
+uv run strava-cli sync-wahoo [--full] [--zones] [--max-pages N]
+```
+
+Syncs Wahoo workouts with live progress. Use `--full` for the first backfill; with sandbox
+limits (250 requests/day) a large history can take several runs, and each run resumes where the
+last stopped.
 
 ```
 uv run strava-cli import-cronometer path/to/dailysummary.csv

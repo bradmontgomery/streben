@@ -43,4 +43,9 @@ dev = [
     "seaborn>=0.13.0",
     "matplotlib>=3.8.0",
     "fitdecode>=0.10.0",
+    "pytest>=9.2.0",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

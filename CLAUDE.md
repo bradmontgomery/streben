@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Streben** is a locally-running web application for syncing, storing, and visualizing cycling activity data. It ingests data from two sources — the Strava API and Garmin FIT file uploads — stores everything in a local SQLite database, and presents it through a server-rendered web UI.
+**Streben** is a locally-running web application for syncing, storing, and visualizing cycling activity data. It ingests data from three sources — the Strava API, the Wahoo Cloud API, and Garmin FIT file uploads — stores everything in a local SQLite database, and presents it through a server-rendered web UI.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for full technical details including database schema, data flows, and route definitions.
 
@@ -41,8 +41,16 @@ The app will be accessible at `http://localhost:8000`. The SQLite database is au
 # Backfill missing stream data from Strava (preferred over web UI for large batches)
 uv run strava-cli backfill-streams [--limit N]
 
+# Sync workouts from Wahoo (--full for the first backfill; --zones also imports power zones)
+uv run strava-cli sync-wahoo [--full] [--zones]
+
 # Import a Cronometer daily summary CSV (re-importing a date overwrites it)
 uv run strava-cli import-cronometer path/to/dailysummary.csv
+```
+
+### Tests
+```bash
+uv run pytest
 ```
 
 ### Strava API Setup
@@ -64,11 +72,15 @@ app/
 │   ├── dashboard.py     # GET /              — paginated activity list
 │   ├── activities.py    # GET /activities/:id — activity detail + chart
 │   ├── strava.py        # Strava OAuth, sync, stream fetch/backfill
+│   ├── wahoo.py         # Wahoo OAuth, workout sync, power-zone import
 │   ├── fit_upload.py    # GET/POST /upload   — FIT file upload
 │   ├── nutrition.py     # Nutrition page, Cronometer CSV import, energy-balance API
 │   └── trends.py        # GET /trends, GET /api/trends — trends page + JSON API
 ├── services/
 │   ├── strava_client.py # Strava API client (auth, tokens, activities, streams)
+│   ├── wahoo_client.py  # Wahoo Cloud API client (auth, tokens, rate limits, FIT download)
+│   ├── wahoo_sync.py    # Wahoo workout mapping, sync loop, power-zone import
+│   ├── activity_store.py # Shared activity insert + cross-source duplicate check
 │   ├── fit_parser.py    # FIT file decoding via garmin-fit-sdk
 │   ├── charts.py        # Plotly chart generation for activity streams
 │   ├── cronometer.py    # Cronometer CSV parsing (nutrition + biometrics)
@@ -95,6 +107,20 @@ app/
 - Strava API returns streams in two formats (list of `{type, data}` objects or dict keyed by type) — the app handles both
 - Rate limit: 100 requests per 15 minutes — the CLI backfill command adds 1-second delays between calls
 - All timestamps are UTC; the browser converts to local timezone for display
+
+### Wahoo Cloud API
+- Configured on `/settings` (client ID/secret pre-filled from `WAHOO_CLIENT_ID`/`WAHOO_SECRET`,
+  plus a stored redirect URI that must exactly match the Wahoo developer portal; the default is
+  `https://localhost:8000/wahoo/redirect`, which requires running uvicorn with TLS)
+- Workout summaries give the activity columns; the summary's FIT file (`file.url`) is downloaded
+  and parsed with `fit_parser` for streams. Decimals arrive as **strings** — always cast
+- `raw_data` gets a computed `start_date_local` (from `starts` + `time_zone`) so energy balance
+  buckets Wahoo rides on the local day, same as Strava
+- `sport_type` is mapped to Strava's vocabulary (`Ride`, `VirtualRide`, …) so filters merge sources
+- Sandbox rate limits are tiny (25 / 5 min, 250 / day); syncs stop cleanly and resume. Use
+  Disconnect before reconnecting — Wahoo caps a user at 10 unrevoked tokens
+- **Cross-source dedup**: Strava and Wahoo syncs skip an activity that starts within ±5 min of an
+  existing one from a *different* source, otherwise ride kJ would double-count in energy balance
 
 ### FIT File Parsing
 - FIT files are decoded using garmin-fit-sdk (session + record messages)

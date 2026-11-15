@@ -3,6 +3,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.database import get_db
 from app.models import Activity
+from app.services import wahoo_client
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -60,4 +61,5 @@ def dashboard(request: Request, page: int = 1, per_page: int = 100, sport_type: 
         "has_streams": has_streams,
         "sport_types": sport_types,
         "current_sport_type": sport_type,
+        "wahoo_connected": wahoo_client.is_connected(),
     })
