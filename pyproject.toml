@@ -1,6 +1,6 @@
 [project]
 name = "streben"
-version = "0.5.0"
+version = "0.6.0"
 description = "Local web app for syncing, storing, and visualizing cycling activity data from Strava and Garmin FIT files"
 requires-python = ">=3.11"
 authors = [
@@ -43,4 +43,9 @@ dev = [
     "seaborn>=0.13.0",
     "matplotlib>=3.8.0",
     "fitdecode>=0.10.0",
+    "pytest>=9.2.0",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
