@@ -62,6 +62,48 @@
         }
     });
 
+    // Busy feedback for long-running POSTs (sync, backfill, etc.).
+    // Opt in with <form data-busy="Message…">; the page redirects when the work finishes.
+    (() => {
+        let timer = null;
+
+        document.addEventListener('submit', (event) => {
+            const form = event.target;
+            if (!form.matches('form[data-busy]')) return;
+
+            const button = form.querySelector('button[type="submit"], button:not([type])');
+            if (button) button.classList.add('is-loading');
+            // Disable after the submit event so the POST still goes out; block concurrent jobs.
+            setTimeout(() => {
+                document.querySelectorAll('form[data-busy] button').forEach((b) => { b.disabled = true; });
+            }, 0);
+
+            const status = document.getElementById('busy-status');
+            if (status) {
+                const started = Date.now();
+                const render = () => {
+                    const secs = Math.floor((Date.now() - started) / 1000);
+                    status.textContent = `${form.dataset.busy} ${secs}s — this can take a minute.`;
+                };
+                render();
+                status.classList.remove('is-hidden');
+                timer = setInterval(render, 1000);
+            }
+        });
+
+        // Back/forward cache restores the page mid-"busy"; reset it.
+        window.addEventListener('pageshow', (event) => {
+            if (!event.persisted) return;
+            clearInterval(timer);
+            document.querySelectorAll('form[data-busy] button').forEach((b) => {
+                b.disabled = false;
+                b.classList.remove('is-loading');
+            });
+            const status = document.getElementById('busy-status');
+            if (status) status.classList.add('is-hidden');
+        });
+    })();
+
     // Dark/light theme toggle
     (() => {
         const html = document.documentElement;
