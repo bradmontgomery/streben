@@ -4,7 +4,7 @@
 
 Streben is a locally-running web application for syncing, storing, and visualizing cycling activity data. It ingests data from three sources — the Strava API, the Wahoo Cloud API, and Garmin FIT files — stores everything in a local SQLite database, and presents it through a server-rendered web UI.
 
-The application is built with **FastAPI** and **Jinja2** templates, styled with **Bulma CSS** (via CDN), and uses **Plotly** and **Apache ECharts** for data visualization. There is no JavaScript frontend framework; all pages are server-rendered with minimal inline JS for interactivity.
+The application is built with **FastAPI** and **Jinja2** templates, styled with **Bulma CSS** (via CDN), and uses **Plotly**, **Apache ECharts** and **Leaflet** for charts and maps. There is no JavaScript frontend framework; all pages are server-rendered with minimal inline JS for interactivity.
 
 ## Tech Stack
 
@@ -13,7 +13,8 @@ The application is built with **FastAPI** and **Jinja2** templates, styled with 
 | Web framework | FastAPI                        |
 | Templating    | Jinja2                         |
 | CSS           | Bulma 1.0.2 (CDN)             |
-| Charts        | Plotly (activity detail), Apache ECharts (trends) |
+| Charts        | Plotly (activity detail), Apache ECharts (trends, jsDelivr CDN) |
+| Maps          | Leaflet 1.9.4 + leaflet.fullscreen (unpkg CDN) |
 | Database      | SQLite (via `sqlite3`, no ORM) |
 | FIT parsing   | garmin-fit-sdk                 |
 | HTTP client   | requests                       |
@@ -28,15 +29,16 @@ streben/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI app setup, router registration, startup
-│   ├── database.py          # SQLite connection, schema, init_db()
+│   ├── database.py          # SQLite connection, schema, ALTER TABLE migrations, init_db()
 │   ├── models.py            # Dataclasses: Activity, StreamRecord, StravaAuth
-│   ├── cli.py               # CLI commands (backfill-streams)
+│   ├── cli.py               # strava-cli commands (see CLI below)
 │   ├── routers/
-│   │   ├── dashboard.py     # GET /              — paginated activity list
-│   │   ├── activities.py    # GET /activities/:id — activity detail + chart
-│   │   ├── strava.py        # Strava OAuth, sync, stream fetch/backfill
+│   │   ├── dashboard.py     # GET /              — paginated, filterable activity list
+│   │   ├── activities.py    # /activities/:id    — detail, charts, map, rename, delete
+│   │   ├── strava.py        # Strava OAuth, settings, zones, sync, stream fetch/backfill
 │   │   ├── wahoo.py         # Wahoo OAuth, workout sync, power-zone import
 │   │   ├── fit_upload.py    # GET/POST /upload   — FIT file upload
+│   │   ├── nutrition.py     # Nutrition page, Cronometer import, body metrics, energy-balance API
 │   │   └── trends.py        # GET /trends, GET /api/trends — trends page + JSON API
 │   ├── services/
 │   │   ├── strava_client.py # Strava API client (auth, tokens, activities, streams)
@@ -44,24 +46,35 @@ streben/
 │   │   ├── wahoo_sync.py    # Wahoo workout → activity mapping, sync loop, zone import
 │   │   ├── activity_store.py # Shared activity insert + cross-source duplicate check
 │   │   ├── fit_parser.py    # FIT file decoding via garmin-fit-sdk
-│   │   └── charts.py        # Plotly chart generation for activity streams
+│   │   ├── charts.py        # Plotly stream chart + time-in-zone charts
+│   │   ├── zones.py         # zone_settings read/write, zone bounds
+│   │   ├── geo.py           # Encoded-polyline decoding for route maps
+│   │   ├── cronometer.py    # Cronometer CSV parsing (nutrition + biometrics)
+│   │   ├── nutrition.py     # Nutrition / body-metric persistence
+│   │   ├── energy.py        # Mifflin–St Jeor RMR, daily energy balance
+│   │   └── ranges.py        # Shared time-range vocabulary (1w … all)
 │   └── templates/
-│       ├── base.html         # Layout: navbar, flash messages, dark/light toggle
-│       ├── dashboard.html    # Activity table with pagination
-│       ├── activity_detail.html # Stats summary + Plotly stream chart
+│       ├── base.html         # Layout: navbar, flash, theme toggle, brand shimmer, busy forms, race
+│       ├── dashboard.html    # Activity table, sport-type filter, sync buttons, pagination
+│       ├── activity_detail.html # Stats, Plotly chart, route map, zones, rename/delete
 │       ├── fit_upload.html   # FIT file upload form
-│       ├── settings.html     # Strava + Wahoo credentials, connection status, zones
+│       ├── nutrition.html    # Daily energy-balance table + summary tiles
+│       ├── nutrition_upload.html # Cronometer CSV upload form
+│       ├── settings.html     # Strava + Wahoo credentials, zones, body metrics, weight log
 │       └── trends.html       # ECharts time-series with metric/range toggles
 ├── data/
-│   └── strava.db            # SQLite database (created at runtime)
-├── tests/                   # pytest (uv run pytest)
+│   └── strava.db            # SQLite database (created at runtime, gitignored)
+├── docs/
+│   └── index.html           # Public project site (GitHub Pages); not part of the app
+├── tests/                   # pytest (uv run pytest) — currently covers Wahoo sync only
 ├── pyproject.toml
 └── uv.lock
 ```
 
 ## Database Schema
 
-SQLite with WAL mode and foreign keys enabled. Three tables:
+SQLite with WAL mode and foreign keys enabled. Nine tables, created in `app/database.py`;
+columns added after the first release are applied by idempotent `ALTER TABLE` migrations at startup.
 
 ### `strava_auth`
 Single-row table (`CHECK id = 1`) storing Strava OAuth credentials and tokens.
@@ -79,7 +92,8 @@ Single-row table (`CHECK id = 1`) storing Strava OAuth credentials and tokens.
 Single-row table (`CHECK id = 1`) like `strava_auth`, plus `redirect_uri` — the OAuth callback
 must exactly match one registered in the Wahoo developer portal, so it is stored rather than
 derived from the request. Defaults to `https://localhost:8000/wahoo/redirect`. Access tokens last
-2 hours; `expires_at` is computed from `expires_in`.
+2 hours; `expires_at` is computed from `expires_in`. `history_synced_at` is set once a sync has
+paged through the whole Wahoo history (see Wahoo Sync).
 
 ### `wahoo_power_zones`
 One row per Wahoo power-zone entry (Wahoo keeps one per workout type), keyed by Wahoo's id:
@@ -112,8 +126,16 @@ Unified table for Strava-synced, Wahoo-synced, and FIT-uploaded activities.
 | elev_low                | REAL    | Meters                             |
 | kilojoules              | REAL    |                                    |
 | suffer_score            | REAL    | Strava-only                        |
+| total_elevation_gain    | REAL    | Meters (migration)                 |
+| calories                | REAL    | (migration)                        |
+| description             | TEXT    | (migration)                        |
+| device_name             | TEXT    | (migration)                        |
+| average_temp            | REAL    | °C (migration)                     |
+| summary_polyline        | TEXT    | Encoded route; map fallback (migration) |
 | fit_filename            | TEXT    | FIT upload only                    |
 | raw_data                | TEXT    | Full Strava or Wahoo workout JSON; Wahoo rows get a computed `start_date_local` |
+
+Indexed on `start_date`; `wahoo_id` is unique via an index (`ADD COLUMN` can't add `UNIQUE`).
 
 ### `activity_streams`
 Per-second time-series data for activities. Indexed on `activity_id`.
@@ -132,6 +154,14 @@ Per-second time-series data for activities. Indexed on `activity_id`.
 | lat              | REAL    | Degrees                  |
 | lng              | REAL    | Degrees                  |
 
+### `zone_settings`
+Singleton row (`CHECK (id = 1)`) of zone **lower bounds**; zone 5 has no upper limit.
+`POST /wahoo/sync-zones` can overwrite the power columns.
+
+| Columns               | Type    | Defaults                    |
+|-----------------------|---------|-----------------------------|
+| power_z1 … power_z5   | INTEGER | 0, 100, 150, 200, 250 (W)   |
+| hr_z1 … hr_z5         | INTEGER | 0, 115, 140, 160, 175 (bpm) |
 
 ### `nutrition`
 One row per calendar day, imported from a Cronometer `dailysummary.csv`. `date` is the PK, so
@@ -283,10 +313,13 @@ For activities synced before stream fetching was implemented:
 |--------|-----------------------------------|------------------------------------|
 | GET    | `/`                               | Dashboard — paginated activity list |
 | GET    | `/activities/{id}`                | Activity detail with charts        |
+| POST   | `/activities/{id}/rename`         | Rename an activity                 |
+| POST   | `/activities/{id}/delete`         | Delete an activity and its streams |
 | GET    | `/upload`                         | FIT upload form                    |
 | POST   | `/upload`                         | Handle FIT file upload             |
-| GET    | `/settings`                       | Strava credentials & status        |
+| GET    | `/settings`                       | Credentials, connections, zones, body metrics |
 | POST   | `/settings`                       | Save Strava credentials            |
+| POST   | `/settings/zones`                 | Save power/HR zone lower bounds    |
 | GET    | `/strava/connect`                 | Start Strava OAuth flow            |
 | GET    | `/strava/callback`                | OAuth callback                     |
 | POST   | `/strava/sync`                    | Sync all activities from Strava    |
@@ -312,13 +345,21 @@ For activities synced before stream fetching was implemented:
 ## Pages
 
 ### Dashboard (`/`)
-Paginated table of all activities (default 100/page). Shows date, name, source tag, sport type, duration, distance, avg watts, avg HR. Warning icon on activities missing stream data. Buttons for Strava sync, Wahoo sync (shown only when Wahoo is connected), and stream backfill.
+Paginated table of all activities (`per_page`, default 100, max 500), filterable by sport type.
+Shows date, name, source tag, sport type, duration, distance, avg watts, avg HR, and kJ. Warning
+icon on activities missing stream data. Buttons for Strava sync, Wahoo sync (shown only when Wahoo
+is connected), and stream backfill; each shows a spinner and elapsed-time status while it runs.
 
 ### Activity Detail (`/activities/:id`)
-Summary stats bar (duration, distance, power, HR, energy), interactive Plotly chart of stream data (watts, HR, cadence), additional stats section. "View on Strava" badge links to the original activity for Strava-sourced data. "Fetch Streams from Strava" button when stream data is missing.
+Summary stats bar (duration, distance, power, HR, energy), interactive Plotly chart of stream data
+(watts, HR, cadence), and a Leaflet route map (stream lat/lng, falling back to the decoded
+`summary_polyline`; full-screen toggle). Time-in-power-zone and time-in-HR-zone charts use
+`zone_settings`. Also: additional stats, the activity description, inline rename, and delete.
+"View on Strava" badge links to the original activity for Strava-sourced data. "Fetch Streams from
+Strava" button when stream data is missing.
 
 ### Trends (`/trends`)
-Time-series chart using Apache ECharts. Toggle between metrics (duration, distance, avg/max power, avg/max HR, energy, suffer score) and time ranges (1W, 1M, 3M, 6M, 1Y, All). Optional linear regression trend line overlay. Data fetched via `/api/trends` JSON endpoint.
+Time-series chart using Apache ECharts. Toggle between metrics (duration, distance, elevation, avg/max power, avg/max HR, energy, suffer score) and time ranges (1W, 1M, 3M, 6M, 1Y, All). Optional linear regression trend line overlay. Data fetched via `/api/trends` JSON endpoint.
 
 Two additional metrics — **Energy Balance** and **Weight** — are served from
 `/api/nutrition-trends` instead, because nutrition has a one-row-per-calendar-day grain while
@@ -347,7 +388,12 @@ connect/disconnect) and adds "Import zones from Wahoo" with the last-imported FT
 
 ## UI
 
-- **Bulma CSS 1.0.2** via CDN — default theme, no custom CSS
+- **Bulma CSS 1.0.2** via CDN, default theme. The only custom CSS/JS is inline in `base.html`:
+  - **Brand shimmer**: per-letter amber wave across "Streben" on every page load
+  - **Navbar race**: emoji athletes race to a finish flag on `/` only
+  - **Busy forms**: any `<form data-busy="Message…">` shows a spinner on submit, disables all busy
+    forms' buttons (no concurrent syncs), and updates `#busy-status` with elapsed time if present
+  - All motion is skipped under `prefers-reduced-motion: reduce`
 - **Dark/light mode** toggle in navbar, persisted in localStorage, uses Bulma's `data-theme` attribute
 - **Flash messages** via query parameter, displayed as dismissible Bulma notifications
 - **Responsive** navbar with burger menu for mobile
@@ -356,44 +402,16 @@ connect/disconnect) and adds "Import zones from Wahoo" with the last-imported FT
 
 Registered as `strava-cli` via `[project.scripts]` in pyproject.toml.
 
-```
-uv run strava-cli backfill-streams [--limit N]
-```
+| Command | Purpose |
+|---|---|
+| `backfill-streams [--limit N]` | Fetch missing Strava streams, with progress and a 1 s delay per call (Strava allows 100 requests / 15 min) |
+| `backfill-fields` | Re-extract activity columns from stored Strava `raw_data`, so new columns need no re-sync |
+| `sync-wahoo [--full] [--zones] [--max-pages N]` | Sync Wahoo workouts with live progress; `--full` for the first backfill, `--zones` to import power zones |
+| `import-cronometer PATH` | Upsert a Cronometer `dailysummary.csv`, one row per date (re-importing overwrites) |
+| `import-biometrics PATH` | Import dated weights from a Cronometer biometrics CSV |
+| `backfill-nutrition-fields` | Re-promote curated nutrition columns from stored `raw_data` |
 
-Fetches missing stream data from Strava with per-activity progress output, 1-second delay between API calls to respect rate limits (100 requests / 15 minutes).
+With Wahoo's sandbox limits (250 requests/day) a large history can take several `sync-wahoo` runs;
+each resumes where the last stopped.
 
-```
-uv run strava-cli sync-wahoo [--full] [--zones] [--max-pages N]
-```
-
-Syncs Wahoo workouts with live progress. Use `--full` for the first backfill; with sandbox
-limits (250 requests/day) a large history can take several runs, and each run resumes where the
-last stopped.
-
-```
-uv run strava-cli import-cronometer path/to/dailysummary.csv
-uv run strava-cli import-biometrics path/to/biometrics.csv
-uv run strava-cli backfill-nutrition-fields
-```
-
-`import-cronometer` upserts one row per date — re-importing overwrites. `backfill-nutrition-fields`
-re-promotes the curated columns from stored `raw_data`, so new columns can be added without a
-re-upload (mirrors `backfill-fields` for activities).
-
-## Running
-
-```bash
-# Install dependencies
-uv sync
-
-# Start the web server
-uv run uvicorn app.main:app --port 8000
-
-# Backfill stream data (CLI)
-uv run strava-cli backfill-streams --limit 50
-
-# Import nutrition data
-uv run strava-cli import-cronometer ~/Downloads/dailysummary.csv
-```
-
-The database is auto-created at `data/strava.db` on first startup.
+Setup and running instructions live in the [README](README.md).
