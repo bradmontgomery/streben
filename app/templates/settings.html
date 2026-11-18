@@ -151,7 +151,7 @@
                     {% for i in range(1, 8) %}{% set z = wahoo_zones["zone_%d"|format(i)] %}{% if z is not none %}{{ "%.0f"|format(z) }}{% if not loop.last %} / {% endif %}{% endif %}{% endfor %} W
                 </p>
             {% endif %}
-            <form method="post" action="/wahoo/sync-zones">
+            <form method="post" action="/wahoo/sync-zones" data-busy="Importing zones from Wahoo…">
                 <button class="button is-info is-outlined" type="submit">Import zones from Wahoo</button>
             </form>
             <p class="help mt-2">Overwrites the power zones below with your Wahoo cycling zones. Heart rate zones are kept.</p>

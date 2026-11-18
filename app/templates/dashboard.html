@@ -27,20 +27,21 @@
                 </div>
             </div>
         </div>
-        <div class="level-item">
-            <div class="buttons">
-                <form method="post" action="/strava/sync">
+        <div class="level-item is-flex-direction-column is-align-items-flex-end">
+            <div class="buttons mb-0">
+                <form method="post" action="/strava/sync" data-busy="Syncing from Strava…">
                     <button class="button is-primary" type="submit">Sync from Strava</button>
                 </form>
                 {% if wahoo_connected %}
-                <form method="post" action="/wahoo/sync">
+                <form method="post" action="/wahoo/sync" data-busy="Syncing from Wahoo…">
                     <button class="button is-link" type="submit">Sync from Wahoo</button>
                 </form>
                 {% endif %}
-                <form method="post" action="/strava/backfill-streams">
+                <form method="post" action="/strava/backfill-streams" data-busy="Backfilling streams…">
                     <button class="button is-info is-outlined" type="submit">Backfill Streams</button>
                 </form>
             </div>
+            <p id="busy-status" class="help is-hidden" role="status" aria-live="polite"></p>
         </div>
     </div>
 </div>

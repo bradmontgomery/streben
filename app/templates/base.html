@@ -5,12 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Streben{% endblock %}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+    <style>
+    /* One-shot shimmer across the brand name on page load: a left-to-right wave
+       where each letter briefly glows amber and grows. scale() (not font-size)
+       so the navbar doesn't reflow. */
+    .brand-shimmer > span {
+        display: inline-block;
+        transform-origin: 50% 70%;
+        animation: brand-letter 0.6s ease-in-out calc(0.3s + var(--i) * 90ms) 1 both;
+    }
+    @keyframes brand-letter {
+        0%, 100% { color: #fff; transform: scale(1); text-shadow: none; }
+        50%      { color: #ffb347; transform: scale(1.2); text-shadow: 0 0 6px rgba(255, 179, 71, 0.6); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .brand-shimmer > span { animation: none; }
+    }
+    /* Page-load race across the navbar (driven by the script at the bottom). */
+    .nav-race { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+    .nav-race > * { position: absolute; left: 0; line-height: 1; will-change: transform, opacity; }
+    .nav-racer, .nav-flag, .nav-medal { font-size: 1.4rem; }
+    .nav-racer > span { display: inline-block; animation: nav-bob 0.25s ease-in-out infinite alternate; }
+    @keyframes nav-bob {
+        from { transform: translateY(-2px) rotate(-5deg); }
+        to   { transform: translateY(2px) rotate(5deg); }
+    }
+    .nav-spark { width: 6px; height: 6px; border-radius: 50%; }
+    </style>
 </head>
 <body>
     <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
             <a class="navbar-item has-text-weight-bold" href="/">
-                Streben
+                <span class="is-sr-only">Streben</span><span class="brand-shimmer" aria-hidden="true">{% for ch in "Streben" %}<span style="--i: {{ loop.index0 }}">{{ ch }}</span>{% endfor %}</span>
             </a>
             <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="mainNav">
                 <span aria-hidden="true"></span>
@@ -61,6 +88,150 @@
             });
         }
     });
+
+    // Busy feedback for long-running POSTs (sync, backfill, etc.).
+    // Opt in with <form data-busy="Message…">; the page redirects when the work finishes.
+    (() => {
+        let timer = null;
+
+        document.addEventListener('submit', (event) => {
+            const form = event.target;
+            if (!form.matches('form[data-busy]')) return;
+
+            const button = form.querySelector('button[type="submit"], button:not([type])');
+            if (button) button.classList.add('is-loading');
+            // Disable after the submit event so the POST still goes out; block concurrent jobs.
+            setTimeout(() => {
+                document.querySelectorAll('form[data-busy] button').forEach((b) => { b.disabled = true; });
+            }, 0);
+
+            const status = document.getElementById('busy-status');
+            if (status) {
+                const started = Date.now();
+                const render = () => {
+                    const secs = Math.floor((Date.now() - started) / 1000);
+                    status.textContent = `${form.dataset.busy} ${secs}s — this can take a minute.`;
+                };
+                render();
+                status.classList.remove('is-hidden');
+                timer = setInterval(render, 1000);
+            }
+        });
+
+        // Back/forward cache restores the page mid-"busy"; reset it.
+        window.addEventListener('pageshow', (event) => {
+            if (!event.persisted) return;
+            clearInterval(timer);
+            document.querySelectorAll('form[data-busy] button').forEach((b) => {
+                b.disabled = false;
+                b.classList.remove('is-loading');
+            });
+            const status = document.getElementById('busy-status');
+            if (status) status.classList.add('is-hidden');
+        });
+    })();
+
+    // Homepage-only page-load race: athletes sprint to a finish flag, burst into confetti on
+    // crossing, the winner gets a medal, then everything fades. ~2.5s total.
+    (() => {
+        if (window.location.pathname !== '/') return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const nav = document.querySelector('.navbar');
+        if (!nav || !nav.animate) return;
+
+        const layer = document.createElement('div');
+        layer.className = 'nav-race';
+        layer.setAttribute('aria-hidden', 'true');
+        nav.appendChild(layer);
+
+        const W = nav.clientWidth;
+        const midY = nav.clientHeight / 2;
+        const finishX = W - 56;
+        const colors = ['#ffb347', '#00d1b2', '#ffffff', '#ff6b6b', '#485fc7'];
+        const shuffle = (a) => a.map((v) => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map((p) => p[1]);
+        const place = (el, x, y) => { el.style.left = x + 'px'; el.style.top = y + 'px'; };
+
+        // Finish flag fades in at the line.
+        const flag = document.createElement('span');
+        flag.className = 'nav-flag';
+        flag.textContent = '\u{1F3C1}';
+        layer.appendChild(flag);
+        place(flag, finishX + 14, midY - 12);
+        flag.animate([{ opacity: 0, transform: 'scale(0.4)' }, { opacity: 1, transform: 'scale(1)' }],
+                     { duration: 300, easing: 'ease-out', fill: 'forwards' });
+
+        const burst = (x, y) => {
+            const n = 10;
+            for (let i = 0; i < n; i++) {
+                const dot = document.createElement('span');
+                dot.className = 'nav-spark';
+                dot.style.background = colors[i % colors.length];
+                layer.appendChild(dot);
+                place(dot, x, y);
+                const angle = (i / n) * 2 * Math.PI + Math.random() * 0.4;
+                const dist = 22 + Math.random() * 18;
+                dot.animate([
+                    { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+                    { transform: `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px) scale(0.3)`, opacity: 0 },
+                ], { duration: 600 + Math.random() * 200, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' })
+                    .onfinish = () => dot.remove();
+            }
+        };
+
+        const medal = (x, y) => {
+            const m = document.createElement('span');
+            m.className = 'nav-medal';
+            m.textContent = '\u{1F947}';
+            layer.appendChild(m);
+            place(m, x - 10, y - 12);
+            m.animate([
+                { transform: 'translateY(0) scale(0)', opacity: 0 },
+                { transform: 'translateY(-4px) scale(1.6)', opacity: 1, offset: 0.3 },
+                { transform: 'translateY(-10px) scale(1.2)', opacity: 1, offset: 0.7 },
+                { transform: 'translateY(-16px) scale(1)', opacity: 0 },
+            ], { duration: 1100, easing: 'ease-out', fill: 'forwards' }).onfinish = () => m.remove();
+        };
+
+        const racers = shuffle(['\u{1F6B4}', '\u{1F3C3}', '\u{1F6B5}', '\u{1F3CA}', '\u{1F6B4}\u200D\u2640\uFE0F']);
+        const lanes = shuffle([-9, -4, 0, 4, 9]);
+        let remaining = racers.length;
+        let hasWinner = false;
+
+        racers.forEach((emoji, i) => {
+            const racer = document.createElement('span');
+            racer.className = 'nav-racer';
+            const inner = document.createElement('span');
+            inner.textContent = emoji;
+            inner.style.animationDelay = `-${Math.random() * 0.25}s`;
+            racer.appendChild(inner);
+            layer.appendChild(racer);
+            const y = midY - 11 + lanes[i];
+            place(racer, 0, y);
+
+            // Emoji athletes face left by default; scaleX(-1) points them toward the finish.
+            racer.animate([
+                { transform: 'translateX(-40px) scaleX(-1)' },
+                { transform: `translateX(${finishX}px) scaleX(-1)` },
+            ], {
+                duration: 1100 + Math.random() * 600,
+                delay: i * 90,
+                easing: 'cubic-bezier(.35,.05,.55,1)',
+                fill: 'forwards',
+            }).onfinish = () => {
+                racer.remove();
+                burst(finishX + 6, y + 11);
+                if (!hasWinner) { hasWinner = true; medal(finishX, y); }
+                if (--remaining === 0) {
+                    flag.animate([
+                        { transform: 'rotate(0) scale(1)', opacity: 1 },
+                        { transform: 'rotate(-18deg) scale(1.15)', opacity: 1, offset: 0.35 },
+                        { transform: 'rotate(12deg) scale(0.6)', opacity: 0 },
+                    ], { duration: 650, easing: 'ease-in', fill: 'forwards' })
+                        .onfinish = () => setTimeout(() => layer.remove(), 1200);
+                }
+            };
+        });
+    })();
 
     // Dark/light theme toggle
     (() => {
