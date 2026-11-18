@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Streben — your rides, your machine</title>
+    <meta name="description" content="Streben brings your Strava, Wahoo and Garmin rides into one private training log that lives on your own computer. No socials. No signups.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚴</text></svg>">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+    <style>
+    :root { --sb-amber: #c97a10; }
+    @media (prefers-color-scheme: dark) { :root { --sb-amber: #ffb347; } }
+
+    /* Hero: always dark so the amber shimmer reads the same in either theme. */
+    .sb-hero {
+        position: relative;
+        overflow: hidden;
+        background: radial-gradient(ellipse at 20% 0%, #2a2f3a 0%, #121418 60%);
+        color: #e8e8e8;
+    }
+    .sb-hero .title, .sb-hero .subtitle { color: #fff; }
+    .sb-hero .subtitle { opacity: 0.85; }
+    .sb-hero .hero-body { padding-bottom: 6rem; }
+    .sb-wordmark {
+        font-size: clamp(3rem, 10vw, 5.5rem);
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        line-height: 1.1;
+        margin-bottom: 1.25rem;
+    }
+    .sb-tagline { color: #ffb347; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; font-size: 0.9rem; }
+    .sb-btn-amber { background: #ffb347; color: #121418; border: none; font-weight: 600; }
+    .sb-btn-amber:hover { background: #ffc46e; color: #121418; }
+    .sb-btn-ghost { background: transparent; color: #fff; border: 1px solid rgba(255, 255, 255, 0.6); }
+    .sb-btn-ghost:hover { background: rgba(255, 255, 255, 0.1); color: #fff; border-color: #fff; }
+
+    /* Brand shimmer — the same per-letter wave as the app's navbar. */
+    .brand-shimmer > span {
+        display: inline-block;
+        transform-origin: 50% 70%;
+        animation: brand-letter 0.6s ease-in-out calc(0.3s + var(--i) * 90ms) 1 both;
+    }
+    @keyframes brand-letter {
+        0%, 100% { color: #fff; transform: scale(1); text-shadow: none; }
+        50%      { color: #ffb347; transform: scale(1.2); text-shadow: 0 0 10px rgba(255, 179, 71, 0.6); }
+    }
+
+    /* The road along the bottom of the hero, where the race runs. */
+    .sb-track {
+        position: absolute; left: 0; right: 0; bottom: 0; height: 64px;
+        border-top: 2px dashed rgba(255, 255, 255, 0.12);
+        pointer-events: none;
+    }
+    .nav-race { position: absolute; inset: 0; pointer-events: none; }
+    .nav-race > * { position: absolute; left: 0; line-height: 1; will-change: transform, opacity; }
+    .nav-racer, .nav-flag, .nav-medal { font-size: 1.6rem; }
+    .nav-racer > span { display: inline-block; animation: nav-bob 0.25s ease-in-out infinite alternate; }
+    @keyframes nav-bob {
+        from { transform: translateY(-2px) rotate(-5deg); }
+        to   { transform: translateY(2px) rotate(5deg); }
+    }
+    .nav-spark { width: 7px; height: 7px; border-radius: 50%; }
+
+    @media (prefers-reduced-motion: reduce) {
+        .brand-shimmer > span { animation: none; }
+    }
+
+    /* Content */
+    .sb-accent { color: var(--sb-amber); }
+    .sb-icon { font-size: 2.25rem; line-height: 1; margin-bottom: 0.75rem; display: block; }
+    .sb-feature { height: 100%; }
+    .sb-feature .sb-icon { font-size: 1.75rem; }
+    .sb-narrow { max-width: 46rem; margin-left: auto; margin-right: auto; }
+    .sb-meter-label { display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.25rem; }
+    .sb-meter { margin-bottom: 1rem !important; }
+    progress.sb-meter.is-fuel::-webkit-progress-value { background-color: #ffb347; }
+    progress.sb-meter.is-fuel::-moz-progress-bar { background-color: #ffb347; }
+    .sb-who li { padding: 0.5rem 0; }
+    </style>
+</head>
+<body>
+
+<!-- Hero -->
+<section class="hero is-medium sb-hero">
+    <div class="hero-body">
+        <div class="container has-text-centered">
+            <p class="sb-tagline">No socials · No signups · Everything stays local</p>
+            <h1 class="sb-wordmark">
+                <span class="is-sr-only">Streben</span><span class="brand-shimmer" aria-hidden="true"><span style="--i: 0">S</span><span style="--i: 1">t</span><span style="--i: 2">r</span><span style="--i: 3">e</span><span style="--i: 4">b</span><span style="--i: 5">e</span><span style="--i: 6">n</span></span>
+            </h1>
+            <p class="title is-3">Your rides. Your machine. Your story.</p>
+            <p class="subtitle is-5 sb-narrow">
+                Streben gathers every ride from Strava, Wahoo and your Garmin into one private
+                training log that lives on your own computer, with no one watching but you.
+            </p>
+            <div class="buttons is-centered mt-5">
+                <a class="button is-medium sb-btn-amber" href="https://github.com/bradmontgomery/streben">Get Streben</a>
+                <a class="button is-medium sb-btn-ghost" href="#why">Why Streben?</a>
+            </div>
+        </div>
+    </div>
+    <div class="sb-track" aria-hidden="true"></div>
+</section>
+
+<!-- Why -->
+<section class="section" id="why">
+    <div class="container">
+        <h2 class="title is-2 has-text-centered">Why Streben?</h2>
+        <p class="subtitle is-5 has-text-centered sb-narrow mb-6">
+            Fitness platforms are built to keep you scrolling. Streben is built to help you understand your riding.
+        </p>
+        <div class="columns is-variable is-6">
+            <div class="column">
+                <span class="sb-icon" aria-hidden="true">🔒</span>
+                <h3 class="title is-4">Own your data</h3>
+                <p>
+                    Years of riding are worth more than a feed. Streben keeps your whole history, every
+                    ride and every second of power and heart rate, on your computer. No subscription, no
+                    account, and nothing lost if a service changes its rules.
+                </p>
+            </div>
+            <div class="column">
+                <span class="sb-icon" aria-hidden="true">🤫</span>
+                <h3 class="title is-4">Quiet by design</h3>
+                <p>
+                    No followers, no kudos, no leaderboards, no ads. Just you and your training, without
+                    the pressure of performing it for anyone else.
+                </p>
+            </div>
+            <div class="column">
+                <span class="sb-icon" aria-hidden="true">🔗</span>
+                <h3 class="title is-4">One history, every source</h3>
+                <p>
+                    Ride with a Wahoo, share to Strava, keep the odd Garmin file? Streben brings them
+                    together and recognizes when two services recorded the same ride, so nothing is
+                    counted twice.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- The bigger picture -->
+<section class="section" style="background-color: var(--bulma-scheme-main-bis);">
+    <div class="container">
+        <div class="columns is-vcentered is-variable is-8">
+            <div class="column is-7">
+                <p class="sb-tagline sb-accent">The bigger picture</p>
+                <h2 class="title is-2">Effort out. Fuel in.</h2>
+                <p class="mb-4">
+                    Most training apps stop when the ride does. Streben also reads your food log and lines
+                    it up, day by day, with the energy you spent on the bike.
+                </p>
+                <p>
+                    See whether you are under-fuelling your biggest weeks, how your weight moves with your
+                    training, and what a season really asks of you. Anything Streben has to estimate, like
+                    the snacks you ate mid-ride, is clearly marked as an estimate.
+                </p>
+            </div>
+            <div class="column is-5">
+                <div class="box">
+                    <p class="is-size-7 is-uppercase has-text-weight-semibold has-text-grey mb-3">An example day</p>
+                    <div class="sb-meter-label"><span>🚴 Effort out</span><span>3,100 kcal</span></div>
+                    <progress class="progress is-info sb-meter" value="3100" max="3300" aria-label="Effort out: 3,100 kcal"></progress>
+                    <div class="sb-meter-label"><span>🍝 Fuel in</span><span>2,650 kcal</span></div>
+                    <progress class="progress sb-meter is-fuel" value="2650" max="3300" aria-label="Fuel in: 2,650 kcal"></progress>
+                    <p class="is-size-7 has-text-grey">
+                        A 450 kcal gap after a long ride. Spot it before it becomes a habit.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features -->
+<section class="section">
+    <div class="container">
+        <h2 class="title is-2 has-text-centered">What's inside</h2>
+        <p class="subtitle is-5 has-text-centered mb-6">Everything you need to look back, and nothing you don't.</p>
+        <div class="columns is-multiline">
+            <div class="column is-half-tablet is-one-third-desktop">
+                <div class="box sb-feature">
+                    <span class="sb-icon" aria-hidden="true">📈</span>
+                    <h3 class="title is-5">Every ride, in detail</h3>
+                    <p>Power, heart rate and cadence for each ride, second by second.</p>
+                </div>
+            </div>
+            <div class="column is-half-tablet is-one-third-desktop">
+                <div class="box sb-feature">
+                    <span class="sb-icon" aria-hidden="true">🗺️</span>
+                    <h3 class="title is-5">Route maps</h3>
+                    <p>See where you rode, right alongside how hard you rode it.</p>
+                </div>
+            </div>
+            <div class="column is-half-tablet is-one-third-desktop">
+                <div class="box sb-feature">
+                    <span class="sb-icon" aria-hidden="true">🎯</span>
+                    <h3 class="title is-5">Training zones</h3>
+                    <p>Time spent in each power and heart-rate zone, using zones you set.</p>
+                </div>
+            </div>
+            <div class="column is-half-tablet is-one-third-desktop">
+                <div class="box sb-feature">
+                    <span class="sb-icon" aria-hidden="true">📊</span>
+                    <h3 class="title is-5">Long-term trends</h3>
+                    <p>Distance, climbing, power and more across weeks, months or years.</p>
+                </div>
+            </div>
+            <div class="column is-half-tablet is-one-third-desktop">
+                <div class="box sb-feature">
+                    <span class="sb-icon" aria-hidden="true">🍝</span>
+                    <h3 class="title is-5">Nutrition & energy balance</h3>
+                    <p>Food in against effort out, with a running surplus or deficit.</p>
+                </div>
+            </div>
+            <div class="column is-half-tablet is-one-third-desktop">
+                <div class="box sb-feature">
+                    <span class="sb-icon" aria-hidden="true">⚖️</span>
+                    <h3 class="title is-5">Weight over time</h3>
+                    <p>Logged by date, so every past day uses the weight you were then.</p>
+                </div>
+            </div>
+        </div>
+        <p class="has-text-centered has-text-grey mt-4">
+            Brings in rides from <strong>Strava</strong>, <strong>Wahoo</strong>, and Garmin <strong>.fit</strong> files.
+        </p>
+    </div>
+</section>
+
+<!-- Who it's for -->
+<section class="section" style="background-color: var(--bulma-scheme-main-bis);">
+    <div class="container sb-narrow">
+        <h2 class="title is-2 has-text-centered">Who it's for</h2>
+        <ul class="sb-who is-size-5">
+            <li>🚴 <strong>Cyclists who love their numbers</strong> and want to dig into them on their own terms.</li>
+            <li>🌿 <strong>Riders stepping back from social fitness apps</strong> without giving up their history.</li>
+            <li>📓 <strong>Anyone who wants a private, permanent training log</strong> that no one can switch off.</li>
+        </ul>
+    </div>
+</section>
+
+<!-- Get started -->
+<section class="section">
+    <div class="container sb-narrow has-text-centered">
+        <h2 class="title is-2">Get started</h2>
+        <p class="is-size-5 mb-5">
+            Streben runs on your own computer and you use it in your web browser. Setup takes a few
+            minutes: download it, connect Strava or Wahoo (or drop in your .fit files), and watch
+            your history fill in.
+        </p>
+        <div class="buttons is-centered">
+            <a class="button is-medium sb-btn-amber" href="https://github.com/bradmontgomery/streben#readme">Read the setup guide</a>
+            <a class="button is-medium" href="https://github.com/bradmontgomery/streben">View on GitHub</a>
+        </div>
+    </div>
+</section>
+
+<footer class="footer">
+    <div class="content has-text-centered">
+        <p><em>Streben</em> (German, verb): to strive.</p>
+        <p class="is-size-7 has-text-grey">
+            Free and open source under the
+            <a href="https://github.com/bradmontgomery/streben/blob/main/LICENSE.txt">MIT license</a>
+            · <a href="https://github.com/bradmontgomery/streben">GitHub</a>
+        </p>
+    </div>
+</footer>
+
+<script>
+// The same race as the app's homepage navbar, run along the hero's road:
+// athletes sprint to a finish flag, burst into confetti, the winner gets a medal.
+(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const track = document.querySelector('.sb-track');
+    if (!track || !track.animate) return;
+
+    const layer = document.createElement('div');
+    layer.className = 'nav-race';
+    track.appendChild(layer);
+
+    const W = track.clientWidth;
+    const midY = track.clientHeight / 2;
+    const finishX = W - 64;
+    const colors = ['#ffb347', '#00d1b2', '#ffffff', '#ff6b6b', '#485fc7'];
+    const shuffle = (a) => a.map((v) => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map((p) => p[1]);
+    const place = (el, x, y) => { el.style.left = x + 'px'; el.style.top = y + 'px'; };
+
+    const flag = document.createElement('span');
+    flag.className = 'nav-flag';
+    flag.textContent = '\u{1F3C1}';
+    layer.appendChild(flag);
+    place(flag, finishX + 14, midY - 14);
+    flag.animate([{ opacity: 0, transform: 'scale(0.4)' }, { opacity: 1, transform: 'scale(1)' }],
+                 { duration: 300, delay: 600, easing: 'ease-out', fill: 'both' });
+
+    const burst = (x, y) => {
+        const n = 12;
+        for (let i = 0; i < n; i++) {
+            const dot = document.createElement('span');
+            dot.className = 'nav-spark';
+            dot.style.background = colors[i % colors.length];
+            layer.appendChild(dot);
+            place(dot, x, y);
+            const angle = (i / n) * 2 * Math.PI + Math.random() * 0.4;
+            const dist = 26 + Math.random() * 22;
+            dot.animate([
+                { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+                { transform: `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px) scale(0.3)`, opacity: 0 },
+            ], { duration: 600 + Math.random() * 200, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' })
+                .onfinish = () => dot.remove();
+        }
+    };
+
+    const medal = (x, y) => {
+        const m = document.createElement('span');
+        m.className = 'nav-medal';
+        m.textContent = '\u{1F947}';
+        layer.appendChild(m);
+        place(m, x - 10, y - 14);
+        m.animate([
+            { transform: 'translateY(0) scale(0)', opacity: 0 },
+            { transform: 'translateY(-6px) scale(1.6)', opacity: 1, offset: 0.3 },
+            { transform: 'translateY(-16px) scale(1.2)', opacity: 1, offset: 0.7 },
+            { transform: 'translateY(-26px) scale(1)', opacity: 0 },
+        ], { duration: 1200, easing: 'ease-out', fill: 'forwards' }).onfinish = () => m.remove();
+    };
+
+    const racers = shuffle(['\u{1F6B4}', '\u{1F3C3}', '\u{1F6B5}', '\u{1F3CA}', '\u{1F6B4}‍♀️']);
+    const lanes = shuffle([-14, -7, 0, 7, 14]);
+    let remaining = racers.length;
+    let hasWinner = false;
+
+    racers.forEach((emoji, i) => {
+        const racer = document.createElement('span');
+        racer.className = 'nav-racer';
+        const inner = document.createElement('span');
+        inner.textContent = emoji;
+        inner.style.animationDelay = `-${Math.random() * 0.25}s`;
+        racer.appendChild(inner);
+        layer.appendChild(racer);
+        const y = midY - 13 + lanes[i];
+        place(racer, 0, y);
+
+        // Emoji athletes face left by default; scaleX(-1) points them toward the finish.
+        racer.animate([
+            { transform: 'translateX(-48px) scaleX(-1)' },
+            { transform: `translateX(${finishX}px) scaleX(-1)` },
+        ], {
+            duration: 1500 + Math.random() * 800,
+            delay: 600 + i * 100,
+            easing: 'cubic-bezier(.35,.05,.55,1)',
+            fill: 'both',
+        }).onfinish = () => {
+            racer.remove();
+            burst(finishX + 6, y + 13);
+            if (!hasWinner) { hasWinner = true; medal(finishX, y); }
+            if (--remaining === 0) {
+                flag.animate([
+                    { transform: 'rotate(0) scale(1)', opacity: 1 },
+                    { transform: 'rotate(-18deg) scale(1.15)', opacity: 1, offset: 0.35 },
+                    { transform: 'rotate(12deg) scale(0.6)', opacity: 0 },
+                ], { duration: 650, easing: 'ease-in', fill: 'forwards' })
+                    .onfinish = () => setTimeout(() => layer.remove(), 1200);
+            }
+        };
+    });
+})();
+</script>
+</body>
+</html>
