@@ -5,12 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Streben{% endblock %}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+    <style>
+    /* One-shot shimmer across the brand name on page load: a left-to-right wave
+       where each letter briefly glows amber and grows. scale() (not font-size)
+       so the navbar doesn't reflow. */
+    .brand-shimmer > span {
+        display: inline-block;
+        transform-origin: 50% 70%;
+        animation: brand-letter 0.6s ease-in-out calc(0.3s + var(--i) * 90ms) 1 both;
+    }
+    @keyframes brand-letter {
+        0%, 100% { color: #fff; transform: scale(1); text-shadow: none; }
+        50%      { color: #ffb347; transform: scale(1.2); text-shadow: 0 0 6px rgba(255, 179, 71, 0.6); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .brand-shimmer > span { animation: none; }
+    }
+    </style>
 </head>
 <body>
     <nav class="navbar is-dark" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
             <a class="navbar-item has-text-weight-bold" href="/">
-                Streben
+                <span class="is-sr-only">Streben</span><span class="brand-shimmer" aria-hidden="true">{% for ch in "Streben" %}<span style="--i: {{ loop.index0 }}">{{ ch }}</span>{% endfor %}</span>
             </a>
             <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="mainNav">
                 <span aria-hidden="true"></span>
