@@ -21,6 +21,16 @@
     @media (prefers-reduced-motion: reduce) {
         .brand-shimmer > span { animation: none; }
     }
+    /* Page-load race across the navbar (driven by the script at the bottom). */
+    .nav-race { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+    .nav-race > * { position: absolute; left: 0; line-height: 1; will-change: transform, opacity; }
+    .nav-racer, .nav-flag, .nav-medal { font-size: 1.4rem; }
+    .nav-racer > span { display: inline-block; animation: nav-bob 0.25s ease-in-out infinite alternate; }
+    @keyframes nav-bob {
+        from { transform: translateY(-2px) rotate(-5deg); }
+        to   { transform: translateY(2px) rotate(5deg); }
+    }
+    .nav-spark { width: 6px; height: 6px; border-radius: 50%; }
     </style>
 </head>
 <body>
@@ -118,6 +128,108 @@
             });
             const status = document.getElementById('busy-status');
             if (status) status.classList.add('is-hidden');
+        });
+    })();
+
+    // Homepage-only page-load race: athletes sprint to a finish flag, burst into confetti on
+    // crossing, the winner gets a medal, then everything fades. ~2.5s total.
+    (() => {
+        if (window.location.pathname !== '/') return;
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const nav = document.querySelector('.navbar');
+        if (!nav || !nav.animate) return;
+
+        const layer = document.createElement('div');
+        layer.className = 'nav-race';
+        layer.setAttribute('aria-hidden', 'true');
+        nav.appendChild(layer);
+
+        const W = nav.clientWidth;
+        const midY = nav.clientHeight / 2;
+        const finishX = W - 56;
+        const colors = ['#ffb347', '#00d1b2', '#ffffff', '#ff6b6b', '#485fc7'];
+        const shuffle = (a) => a.map((v) => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map((p) => p[1]);
+        const place = (el, x, y) => { el.style.left = x + 'px'; el.style.top = y + 'px'; };
+
+        // Finish flag fades in at the line.
+        const flag = document.createElement('span');
+        flag.className = 'nav-flag';
+        flag.textContent = '\u{1F3C1}';
+        layer.appendChild(flag);
+        place(flag, finishX + 14, midY - 12);
+        flag.animate([{ opacity: 0, transform: 'scale(0.4)' }, { opacity: 1, transform: 'scale(1)' }],
+                     { duration: 300, easing: 'ease-out', fill: 'forwards' });
+
+        const burst = (x, y) => {
+            const n = 10;
+            for (let i = 0; i < n; i++) {
+                const dot = document.createElement('span');
+                dot.className = 'nav-spark';
+                dot.style.background = colors[i % colors.length];
+                layer.appendChild(dot);
+                place(dot, x, y);
+                const angle = (i / n) * 2 * Math.PI + Math.random() * 0.4;
+                const dist = 22 + Math.random() * 18;
+                dot.animate([
+                    { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+                    { transform: `translate(${Math.cos(angle) * dist}px, ${Math.sin(angle) * dist}px) scale(0.3)`, opacity: 0 },
+                ], { duration: 600 + Math.random() * 200, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' })
+                    .onfinish = () => dot.remove();
+            }
+        };
+
+        const medal = (x, y) => {
+            const m = document.createElement('span');
+            m.className = 'nav-medal';
+            m.textContent = '\u{1F947}';
+            layer.appendChild(m);
+            place(m, x - 10, y - 12);
+            m.animate([
+                { transform: 'translateY(0) scale(0)', opacity: 0 },
+                { transform: 'translateY(-4px) scale(1.6)', opacity: 1, offset: 0.3 },
+                { transform: 'translateY(-10px) scale(1.2)', opacity: 1, offset: 0.7 },
+                { transform: 'translateY(-16px) scale(1)', opacity: 0 },
+            ], { duration: 1100, easing: 'ease-out', fill: 'forwards' }).onfinish = () => m.remove();
+        };
+
+        const racers = shuffle(['\u{1F6B4}', '\u{1F3C3}', '\u{1F6B5}', '\u{1F3CA}', '\u{1F6B4}\u200D\u2640\uFE0F']);
+        const lanes = shuffle([-9, -4, 0, 4, 9]);
+        let remaining = racers.length;
+        let hasWinner = false;
+
+        racers.forEach((emoji, i) => {
+            const racer = document.createElement('span');
+            racer.className = 'nav-racer';
+            const inner = document.createElement('span');
+            inner.textContent = emoji;
+            inner.style.animationDelay = `-${Math.random() * 0.25}s`;
+            racer.appendChild(inner);
+            layer.appendChild(racer);
+            const y = midY - 11 + lanes[i];
+            place(racer, 0, y);
+
+            // Emoji athletes face left by default; scaleX(-1) points them toward the finish.
+            racer.animate([
+                { transform: 'translateX(-40px) scaleX(-1)' },
+                { transform: `translateX(${finishX}px) scaleX(-1)` },
+            ], {
+                duration: 1100 + Math.random() * 600,
+                delay: i * 90,
+                easing: 'cubic-bezier(.35,.05,.55,1)',
+                fill: 'forwards',
+            }).onfinish = () => {
+                racer.remove();
+                burst(finishX + 6, y + 11);
+                if (!hasWinner) { hasWinner = true; medal(finishX, y); }
+                if (--remaining === 0) {
+                    flag.animate([
+                        { transform: 'rotate(0) scale(1)', opacity: 1 },
+                        { transform: 'rotate(-18deg) scale(1.15)', opacity: 1, offset: 0.35 },
+                        { transform: 'rotate(12deg) scale(0.6)', opacity: 0 },
+                    ], { duration: 650, easing: 'ease-in', fill: 'forwards' })
+                        .onfinish = () => setTimeout(() => layer.remove(), 1200);
+                }
+            };
         });
     })();
 
