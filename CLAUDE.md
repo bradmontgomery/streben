@@ -6,98 +6,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Streben** is a locally-running web application for syncing, storing, and visualizing cycling activity data. It ingests data from three sources — the Strava API, the Wahoo Cloud API, and Garmin FIT file uploads — stores everything in a local SQLite database, and presents it through a server-rendered web UI.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for full technical details including database schema, data flows, and route definitions.
+Stack: FastAPI + Jinja2, Bulma 1.0.2 (CDN), Plotly / ECharts / Leaflet (CDN), SQLite via `sqlite3` (no ORM), garmin-fit-sdk, uv, Python 3.11+.
 
-## Tech Stack
-
-| Layer         | Technology                     |
-|---------------|--------------------------------|
-| Web framework | FastAPI                        |
-| Templating    | Jinja2                         |
-| CSS           | Bulma 1.0.2 (CDN)             |
-| Charts        | Plotly (activity detail), Apache ECharts (trends) |
-| Database      | SQLite (via `sqlite3`, no ORM) |
-| FIT parsing   | garmin-fit-sdk                 |
-| HTTP client   | requests                       |
-| Package mgr   | uv                             |
-| Build backend | hatchling                      |
-| Python        | 3.11+                          |
+**[ARCHITECTURE.md](ARCHITECTURE.md) is the single technical reference** — project tree, database schema, data flows, routes, pages, and the full CLI. Update it (not this file) when those change.
 
 ## Running & Development
 
-### Install Dependencies
 ```bash
-uv sync
+uv sync                                    # install dependencies
+uv run uvicorn app.main:app --port 8000    # http://localhost:8000; creates data/strava.db
+uv run pytest                              # tests
 ```
 
-### Start the Web Server
+### CLI (`strava-cli`)
 ```bash
-uv run uvicorn app.main:app --port 8000
-```
-The app will be accessible at `http://localhost:8000`. The SQLite database is auto-created at `data/strava.db` on first startup.
-
-### CLI Commands
-```bash
-# Backfill missing stream data from Strava (preferred over web UI for large batches)
-uv run strava-cli backfill-streams [--limit N]
-
-# Sync workouts from Wahoo (--full for the first backfill; --zones also imports power zones)
-uv run strava-cli sync-wahoo [--full] [--zones]
-
-# Import a Cronometer daily summary CSV (re-importing a date overwrites it)
-uv run strava-cli import-cronometer path/to/dailysummary.csv
+uv run strava-cli backfill-streams [--limit N]                 # missing Strava streams (preferred over the web UI for large batches)
+uv run strava-cli backfill-fields                              # re-extract activity columns from stored raw_data
+uv run strava-cli sync-wahoo [--full] [--zones] [--max-pages N] # --full for the first backfill
+uv run strava-cli import-cronometer path/to/dailysummary.csv   # re-importing a date overwrites it
+uv run strava-cli import-biometrics path/to/biometrics.csv     # dated weights
+uv run strava-cli backfill-nutrition-fields                    # re-promote nutrition columns from raw_data
 ```
 
-### Tests
-```bash
-uv run pytest
-```
+## Where Things Live
+- `app/routers/` — one module per area (dashboard, activities, strava, wahoo, fit_upload, nutrition, trends).
+  Most delegate to services; the exception is the Strava sync/backfill loop, which still lives in `routers/strava.py`
+- `app/services/` — API clients, sync loops, FIT parsing, charts, energy math; no FastAPI imports
+- `app/templates/` — Jinja2; `base.html` holds the navbar and all shared inline CSS/JS
+- `app/database.py` — schema + idempotent `ALTER TABLE` migrations; add new columns there
+- `data/strava.db` — SQLite database (runtime, gitignored)
+- `docs/index.html` — public project site (GitHub Pages from `main:/docs`); static, no build, not part of the app
 
-### Strava API Setup
-1. Go to Settings (`/settings`) and enter your Strava app Client ID and Client Secret
-2. Click "Connect to Strava" to complete the OAuth flow
-3. Use "Sync from Strava" on the dashboard to pull activities
-
-See [Strava Developer Docs](https://developers.strava.com/docs/getting-started/) for creating a Strava app.
-
-## Project Structure
-
-```
-app/
-├── main.py              # FastAPI app setup, router registration, startup
-├── database.py          # SQLite connection, schema, init_db()
-├── models.py            # Dataclasses: Activity, StreamRecord, StravaAuth
-├── cli.py               # CLI commands (backfill-streams)
-├── routers/
-│   ├── dashboard.py     # GET /              — paginated activity list
-│   ├── activities.py    # GET /activities/:id — activity detail + chart
-│   ├── strava.py        # Strava OAuth, sync, stream fetch/backfill
-│   ├── wahoo.py         # Wahoo OAuth, workout sync, power-zone import
-│   ├── fit_upload.py    # GET/POST /upload   — FIT file upload
-│   ├── nutrition.py     # Nutrition page, Cronometer CSV import, energy-balance API
-│   └── trends.py        # GET /trends, GET /api/trends — trends page + JSON API
-├── services/
-│   ├── strava_client.py # Strava API client (auth, tokens, activities, streams)
-│   ├── wahoo_client.py  # Wahoo Cloud API client (auth, tokens, rate limits, FIT download)
-│   ├── wahoo_sync.py    # Wahoo workout mapping, sync loop, power-zone import
-│   ├── activity_store.py # Shared activity insert + cross-source duplicate check
-│   ├── fit_parser.py    # FIT file decoding via garmin-fit-sdk
-│   ├── charts.py        # Plotly chart generation for activity streams
-│   ├── cronometer.py    # Cronometer CSV parsing (nutrition + biometrics)
-│   ├── energy.py        # Mifflin–St Jeor RMR, daily energy balance
-│   ├── nutrition.py     # Nutrition/body-metric persistence
-│   └── ranges.py        # Shared time-range vocabulary
-└── templates/           # Jinja2 templates (base, dashboard, detail, trends, etc.)
-```
-
-## Configuration Files
-- **pyproject.toml** — Project metadata, dependencies, build config, CLI entry points
-- **uv.lock** — Locked dependency versions (auto-generated by uv)
-- **ARCHITECTURE.md** — Full application architecture documentation
-
-## Data Locations
-- **data/strava.db** — SQLite database (created at runtime, gitignored)
-- **data/HOP21/** — Sample FIT files for testing
+## Testing & Dependencies
+- `tests/` currently covers **Wahoo sync only**. There are no sample FIT files in the repo, so changes to
+  FIT parsing (or a `garmin-fit-sdk` upgrade) need a manual upload check on `/upload`
+- Use a current `uv`. An older uv rewrites `uv.lock` to an older lockfile format and churns unrelated
+  lines — if `uv lock` produces a huge diff, check `uv --version` before committing
 
 ## Important Context
 
@@ -123,12 +67,15 @@ app/
   existing one from a *different* source, otherwise ride kJ would double-count in energy balance
 
 ### FIT File Parsing
-- FIT files are decoded using garmin-fit-sdk (session + record messages)
-- Power values in workout files use a custom encoding: values 0-1000 are relative (% FTP), absolute power is offset by 1000W
+- FIT files are decoded using garmin-fit-sdk (session + record messages) in `services/fit_parser.py`;
+  the same parser handles uploads and Wahoo's downloaded FIT files
 
 ### UI Conventions
 - Bulma CSS via CDN with dark/light mode toggle (persisted in localStorage)
 - All pages are server-rendered; minimal inline JS for interactivity
+- Long-running POST forms get `data-busy="Message…"` — `base.html` adds a spinner, disables all busy
+  buttons (prevents concurrent syncs), and shows elapsed time in `#busy-status` if the page has one
+- Any animation must be skipped under `prefers-reduced-motion: reduce`
 - Flash messages via query parameters, displayed as dismissible Bulma notifications
 
 ### Nutrition & Energy Balance
